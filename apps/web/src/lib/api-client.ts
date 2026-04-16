@@ -1,13 +1,5 @@
 const API_BASE = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
-function getApiToken(): string {
-  try {
-    return process.env["REPOBENCH_API_TOKEN"] ?? "";
-  } catch {
-    return "";
-  }
-}
-
-const API_TOKEN = getApiToken();
+const API_TOKEN = process.env["REPOBENCH_API_TOKEN"] ?? "";
 
 /**
  * Typed fetch wrapper for the RepoBench API.
@@ -36,7 +28,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(`API error: status=${response.status} path=${path} body=${body}`);
   }
 
-  return response.json() as Promise<T>;
+  return response.json() as T;
 }
 
 export const apiClient = {

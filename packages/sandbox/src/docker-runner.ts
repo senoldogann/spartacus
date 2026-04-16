@@ -4,7 +4,7 @@ import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
-import { DENY_ALL, toDockerNetworkArgs, type NetworkPolicy } from "./network-policy.js";
+import { toDockerNetworkArgs, type NetworkPolicy } from "./network-policy.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -117,7 +117,7 @@ export async function runInDocker(config: DockerRunConfig): Promise<DockerRunRes
     "/workspace",
   ];
 
-  args.push(...toDockerNetworkArgs(config.networkPolicy ?? DENY_ALL));
+  args.push(...toDockerNetworkArgs(config.networkPolicy));
 
   args.push(config.image);
   args.push(...config.command);

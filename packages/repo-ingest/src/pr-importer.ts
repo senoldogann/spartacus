@@ -54,6 +54,7 @@ async function fetchPullRequestDetail(
 
   const response = await fetch(url, {
     headers: createGitHubHeaders(token),
+    signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
   });
 
   if (!response.ok) {

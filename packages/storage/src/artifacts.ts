@@ -23,6 +23,9 @@ function validateKeySegment(segment: string, name: string): void {
   if (INVALID_KEY_SEGMENT_PATTERN.test(segment)) {
     throw new Error(`${name} must not contain path separators: ${name}="${segment}"`);
   }
+  if (segment.includes("..") || segment.includes("%2F") || segment.includes("%5C")) {
+    throw new Error(`${name} contains path traversal sequence: ${name}="${segment}"`);
+  }
 }
 
 /**

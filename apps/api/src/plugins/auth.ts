@@ -2,7 +2,13 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 
 const BEARER_PREFIX = "Bearer ";
-const HMAC_KEY = randomBytes(32);
+const HMAC_KEY = ((): Buffer => {
+  const key = process.env["API_HMAC_KEY"];
+  if (key !== undefined && key.length > 0) {
+    return Buffer.from(key, "hex");
+  }
+  return randomBytes(32);
+})();
 
 function getExpectedApiToken(): Buffer {
   const apiToken = process.env["API_AUTH_TOKEN"];

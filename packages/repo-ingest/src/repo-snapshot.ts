@@ -1,5 +1,7 @@
 import type { TaskSnapshot } from "@repobench/domain";
 
+const GITHUB_API_TIMEOUT_MS = 30_000;
+
 /**
  * Fetches the diff for a specific PR and constructs a TaskSnapshot.
  */
@@ -20,6 +22,7 @@ export async function createSnapshot(
       Accept: "application/vnd.github.diff",
       "X-GitHub-Api-Version": "2022-11-28",
     },
+    signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
   });
 
   if (!diffResponse.ok) {

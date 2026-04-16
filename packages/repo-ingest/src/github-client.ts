@@ -26,6 +26,8 @@ function isGitHubRepoResponse(value: unknown): value is GitHubRepoResponse {
   );
 }
 
+const GITHUB_API_TIMEOUT_MS = 30_000;
+
 /**
  * Fetches repository metadata from the GitHub API.
  */
@@ -41,6 +43,7 @@ export async function fetchRepository(
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
     },
+    signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
   });
 
   if (!response.ok) {

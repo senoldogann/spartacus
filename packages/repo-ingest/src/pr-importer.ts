@@ -15,6 +15,8 @@ type GitHubPullRequestDetail = GitHubPullRequestListItem & {
   readonly changed_files: number;
 };
 
+const GITHUB_API_TIMEOUT_MS = 30_000;
+
 function createGitHubHeaders(token: string): Readonly<Record<string, string>> {
   return {
     Authorization: `Bearer ${token}`,
@@ -121,6 +123,7 @@ export async function fetchMergedPrs(
 
     const response = await fetch(url, {
       headers: createGitHubHeaders(token),
+      signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
     });
 
     if (!response.ok) {

@@ -19,8 +19,11 @@ function formatCommandOutput(result: GitCommandResult): string {
 }
 
 function appendCommandOutput(existingOutput: string, chunk: Buffer): string {
-  const nextOutput = `${existingOutput}${chunk.toString()}`;
+  if (existingOutput.length >= MAX_COMMAND_OUTPUT_LENGTH) {
+    return existingOutput;
+  }
 
+  const nextOutput = existingOutput + chunk.toString();
   if (nextOutput.length <= MAX_COMMAND_OUTPUT_LENGTH) {
     return nextOutput;
   }

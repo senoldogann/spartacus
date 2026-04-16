@@ -1,5 +1,13 @@
 const API_BASE = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
-const API_TOKEN = process.env["REPOBENCH_API_TOKEN"] ?? "";
+function getApiToken(): string {
+  try {
+    return process.env["REPOBENCH_API_TOKEN"] ?? "";
+  } catch {
+    return "";
+  }
+}
+
+const API_TOKEN = getApiToken();
 
 /**
  * Typed fetch wrapper for the RepoBench API.

@@ -1,0 +1,20 @@
+{
+  "name": "@repobench/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@repobench/domain": "workspace:*",
+    "@repobench/storage": "workspace:*",
+    "fastify": "^5.8.5"
+  }
+}

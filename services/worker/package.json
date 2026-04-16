@@ -1,0 +1,22 @@
+{
+    "name": "@repobench/worker",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx watch src/worker.ts",
+        "start": "node dist/worker.js",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src/",
+        "test": "vitest run",
+        "clean": "rm -rf dist"
+    },
+    "dependencies": {
+        "@repobench/domain": "workspace:*",
+        "@repobench/agents": "workspace:*",
+        "@repobench/sandbox": "workspace:*",
+        "@repobench/evaluator": "workspace:*",
+        "@repobench/storage": "workspace:*"
+    }
+}

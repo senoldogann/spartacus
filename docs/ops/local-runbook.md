@@ -48,15 +48,18 @@ pnpm --filter @repobench/web dev
 ## Troubleshooting
 
 ### Postgres won't start
+
 ```bash
 docker compose down -v  # Remove volumes
 pnpm docker:up          # Restart fresh
 ```
 
 ### Port conflicts
+
 Check for existing services on ports 3000, 3001, 5432, 6379, 9000.
 
 ### Build errors after pulling
+
 ```bash
 pnpm clean
 pnpm install

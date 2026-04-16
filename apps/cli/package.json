@@ -1,20 +1,20 @@
 {
-    "name": "@repobench/cli",
-    "version": "0.0.1",
-    "private": true,
-    "type": "module",
-    "bin": {
-        "repobench": "./dist/index.js"
-    },
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsx src/index.ts",
-        "typecheck": "tsc --noEmit",
-        "lint": "eslint src/",
-        "test": "vitest run",
-        "clean": "rm -rf dist"
-    },
-    "dependencies": {
-        "@repobench/domain": "workspace:*"
-    }
+  "name": "@repobench/cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "repobench": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "vitest run --passWithNoTests",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@repobench/domain": "workspace:*"
+  }
 }

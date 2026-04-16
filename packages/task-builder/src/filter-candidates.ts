@@ -19,17 +19,15 @@ const BUGFIX_LABELS = new Set(["bug", "bugfix", "fix", "hotfix", "patch"]);
  * - Has a non-empty description
  */
 export function filterBugfixCandidates(
-    candidates: ReadonlyArray<PrCandidate>,
+  candidates: ReadonlyArray<PrCandidate>,
 ): ReadonlyArray<PrCandidate> {
-    return candidates.filter((candidate) => {
-        const hasBugLabel = candidate.labels.some((label) =>
-            BUGFIX_LABELS.has(label.toLowerCase()),
-        );
-        const hasFixTitle = candidate.title.toLowerCase().startsWith("fix");
-        const isBugfix = hasBugLabel || hasFixTitle;
-        const isReasonableSize = candidate.changedFiles <= MAX_CHANGED_FILES;
-        const hasDescription = candidate.description.trim().length > 0;
+  return candidates.filter((candidate) => {
+    const hasBugLabel = candidate.labels.some((label) => BUGFIX_LABELS.has(label.toLowerCase()));
+    const hasFixTitle = candidate.title.toLowerCase().startsWith("fix");
+    const isBugfix = hasBugLabel || hasFixTitle;
+    const isReasonableSize = candidate.changedFiles <= MAX_CHANGED_FILES;
+    const hasDescription = candidate.description.trim().length > 0;
 
-        return isBugfix && isReasonableSize && hasDescription;
-    });
+    return isBugfix && isReasonableSize && hasDescription;
+  });
 }

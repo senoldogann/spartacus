@@ -24,13 +24,13 @@ docker run --rm \
 
 ### Configuration
 
-| Parameter | Default | Description |
-|---|---|---|
-| `SANDBOX_TIMEOUT_MS` | 300000 (5 min) | Maximum execution time |
-| `SANDBOX_NETWORK_ENABLED` | false | Network access for agent API calls |
-| `SANDBOX_DOCKER_IMAGE` | repobench/sandbox:latest | Base image |
-| Memory limit | 2048 MB | Container memory cap |
-| CPU limit | 2 cores | Container CPU cap |
+| Parameter                 | Default                  | Description                        |
+| ------------------------- | ------------------------ | ---------------------------------- |
+| `SANDBOX_TIMEOUT_MS`      | 300000 (5 min)           | Maximum execution time             |
+| `SANDBOX_NETWORK_ENABLED` | false                    | Network access for agent API calls |
+| `SANDBOX_DOCKER_IMAGE`    | repobench/sandbox:latest | Base image                         |
+| Memory limit              | 2048 MB                  | Container memory cap               |
+| CPU limit                 | 2 cores                  | Container CPU cap                  |
 
 ### Network Policy
 

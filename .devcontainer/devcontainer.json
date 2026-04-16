@@ -1,27 +1,21 @@
 {
-    "name": "repobench",
-    "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20",
-    "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-        "ghcr.io/devcontainers/features/node:1": {
-            "version": "20"
-        }
-    },
-    "postCreateCommand": "npm install -g pnpm@9 && pnpm install",
-    "forwardPorts": [
-        3000,
-        3001,
-        5432,
-        6379,
-        9000
-    ],
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "dbaeumer.vscode-eslint",
-                "esbenp.prettier-vscode",
-                "bradlc.vscode-tailwindcss"
-            ]
-        }
+  "name": "repobench",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
     }
+  },
+  "postCreateCommand": "npm install -g pnpm@9 && pnpm install",
+  "forwardPorts": [3000, 3001, 5432, 6379, 9000],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
 }

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Initial project scaffold with monorepo structure
 - Domain types for Repository, Task, Run, and Metric entities
 - GitHub PR import pipeline stub

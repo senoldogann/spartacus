@@ -36,20 +36,20 @@
 
 ## Component Responsibilities
 
-| Component | Package | Responsibility |
-|---|---|---|
-| Domain | `@repobench/domain` | Shared types, entities, and contracts |
-| Repo Ingest | `@repobench/repo-ingest` | Fetch repo metadata, PRs, diffs from GitHub API |
-| Task Builder | `@repobench/task-builder` | Filter PR candidates, build benchmark tasks |
-| Agent Adapters | `@repobench/agents` | Invoke coding agents via their APIs |
-| Sandbox | `@repobench/sandbox` | Docker-based isolated execution |
-| Evaluator | `@repobench/evaluator` | Apply patches, run tests, produce scores |
-| Storage | `@repobench/storage` | Postgres schema, data access, artifact store |
-| Worker | `@repobench/worker` | Background job processor (BullMQ) |
-| API | `@repobench/api` | REST API for all operations |
-| CLI | `@repobench/cli` | Command-line interface |
-| Web | `@repobench/web` | Next.js dashboard |
-| UI | `@repobench/ui` | Shared React components |
+| Component      | Package                   | Responsibility                                  |
+| -------------- | ------------------------- | ----------------------------------------------- |
+| Domain         | `@repobench/domain`       | Shared types, entities, and contracts           |
+| Repo Ingest    | `@repobench/repo-ingest`  | Fetch repo metadata, PRs, diffs from GitHub API |
+| Task Builder   | `@repobench/task-builder` | Filter PR candidates, build benchmark tasks     |
+| Agent Adapters | `@repobench/agents`       | Invoke coding agents via their APIs             |
+| Sandbox        | `@repobench/sandbox`      | Docker-based isolated execution                 |
+| Evaluator      | `@repobench/evaluator`    | Apply patches, run tests, produce scores        |
+| Storage        | `@repobench/storage`      | Postgres schema, data access, artifact store    |
+| Worker         | `@repobench/worker`       | Background job processor (BullMQ)               |
+| API            | `@repobench/api`          | REST API for all operations                     |
+| CLI            | `@repobench/cli`          | Command-line interface                          |
+| Web            | `@repobench/web`          | Next.js dashboard                               |
+| UI             | `@repobench/ui`           | Shared React components                         |
 
 ## Data Flow
 

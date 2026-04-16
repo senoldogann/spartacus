@@ -35,20 +35,20 @@ pnpm dev
 
 ## Project Layout
 
-| Directory | Purpose |
-|-----------|---------|
-| `apps/api` | Fastify REST API server |
-| `apps/cli` | Command-line interface |
-| `apps/web` | Next.js dashboard |
-| `packages/domain` | Shared TypeScript types and entities |
-| `packages/repo-ingest` | GitHub/SCM data ingestion |
-| `packages/task-builder` | PR/issue to benchmark task conversion |
-| `packages/agents` | Agent adapter interfaces and implementations |
-| `packages/sandbox` | Docker-based isolated execution |
-| `packages/evaluator` | Deterministic scoring engine |
-| `packages/storage` | Database and artifact store access |
-| `packages/ui` | Shared React UI components |
-| `services/worker` | Background job processor (BullMQ) |
+| Directory               | Purpose                                      |
+| ----------------------- | -------------------------------------------- |
+| `apps/api`              | Fastify REST API server                      |
+| `apps/cli`              | Command-line interface                       |
+| `apps/web`              | Next.js dashboard                            |
+| `packages/domain`       | Shared TypeScript types and entities         |
+| `packages/repo-ingest`  | GitHub/SCM data ingestion                    |
+| `packages/task-builder` | PR/issue to benchmark task conversion        |
+| `packages/agents`       | Agent adapter interfaces and implementations |
+| `packages/sandbox`      | Docker-based isolated execution              |
+| `packages/evaluator`    | Deterministic scoring engine                 |
+| `packages/storage`      | Database and artifact store access           |
+| `packages/ui`           | Shared React UI components                   |
+| `services/worker`       | Background job processor (BullMQ)            |
 
 ## Common Commands
 
@@ -86,13 +86,13 @@ Turborepo handles build ordering via the `turbo.json` pipeline configuration.
 
 See `.env.example` for all required variables. Key ones:
 
-| Variable | Description |
-|----------|-------------|
-| `API_AUTH_TOKEN` | Shared bearer token required by protected API endpoints |
-| `DATABASE_URL` | Postgres connection string |
-| `REDIS_URL` | Redis connection string |
-| `ARTIFACT_STORE_ENDPOINT` | S3-compatible store endpoint |
-| `GITHUB_TOKEN` | GitHub API access token |
+| Variable                  | Description                                             |
+| ------------------------- | ------------------------------------------------------- |
+| `API_AUTH_TOKEN`          | Shared bearer token required by protected API endpoints |
+| `DATABASE_URL`            | Postgres connection string                              |
+| `REDIS_URL`               | Redis connection string                                 |
+| `ARTIFACT_STORE_ENDPOINT` | S3-compatible store endpoint                            |
+| `GITHUB_TOKEN`            | GitHub API access token                                 |
 
 ## Adding a New Package
 

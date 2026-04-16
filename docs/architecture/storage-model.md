@@ -7,6 +7,7 @@
 Primary data store for all entities and metadata.
 
 **Responsibilities**:
+
 - Repository, Suite, Task, AgentProfile, Run, RunAttempt, EvaluationVerdict records
 - Task snapshots stored as JSONB
 - Evaluation metrics stored as JSONB
@@ -19,6 +20,7 @@ Primary data store for all entities and metadata.
 Job queue and caching layer.
 
 **Responsibilities**:
+
 - BullMQ job queue for benchmark runs
 - Job progress tracking
 - Temporary result caching
@@ -30,12 +32,14 @@ Job queue and caching layer.
 Binary and text artifact storage.
 
 **Responsibilities**:
+
 - Agent-generated patches
 - Stdout/stderr logs from sandbox runs
 - Test output logs
 - Generated reports
 
 **Key Structure**:
+
 ```
 runs/<run-id>/tasks/<task-id>/attempts/<attempt-id>/patch.diff
 runs/<run-id>/tasks/<task-id>/attempts/<attempt-id>/stdout.log
@@ -47,10 +51,10 @@ runs/<run-id>/report.json
 
 ## Retention Policy
 
-| Data Type | Retention | Rationale |
-|---|---|---|
-| Repository metadata | Indefinite | Small, needed for context |
-| Suite/Task definitions | Indefinite | Needed for re-runs |
-| Run metadata | 1 year | Historical comparison |
-| Artifacts (patches, logs) | 90 days | Storage cost control |
-| Evaluation verdicts | 1 year | Trend analysis |
+| Data Type                 | Retention  | Rationale                 |
+| ------------------------- | ---------- | ------------------------- |
+| Repository metadata       | Indefinite | Small, needed for context |
+| Suite/Task definitions    | Indefinite | Needed for re-runs        |
+| Run metadata              | 1 year     | Historical comparison     |
+| Artifacts (patches, logs) | 90 days    | Storage cost control      |
+| Evaluation verdicts       | 1 year     | Trend analysis            |

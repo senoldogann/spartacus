@@ -6,12 +6,12 @@ RepoBench replays merged pull requests and closed issues from your real codebase
 
 ## Why RepoBench?
 
-| Problem | RepoBench |
-|---|---|
-| Public benchmarks (SWE-bench, HumanEval) use fixed datasets that don't reflect your stack | Benchmarks on your actual codebase, dependencies, and conventions |
-| Agent eval results are not reproducible | Deterministic metrics, sandboxed runs, versioned task sets |
-| No way to compare agents side-by-side on *your* code | Head-to-head comparison on identical tasks from your repo history |
-| Vendor claims are hard to verify internally | Self-hosted, privacy-first — your code never leaves your infrastructure |
+| Problem                                                                                   | RepoBench                                                               |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Public benchmarks (SWE-bench, HumanEval) use fixed datasets that don't reflect your stack | Benchmarks on your actual codebase, dependencies, and conventions       |
+| Agent eval results are not reproducible                                                   | Deterministic metrics, sandboxed runs, versioned task sets              |
+| No way to compare agents side-by-side on _your_ code                                      | Head-to-head comparison on identical tasks from your repo history       |
+| Vendor claims are hard to verify internally                                               | Self-hosted, privacy-first — your code never leaves your infrastructure |
 
 ## Quick Start
 

@@ -1,7 +1,13 @@
 import { defineWorkspace } from "vitest/config";
 
 export default defineWorkspace([
-    "packages/*/vitest.config.ts",
-    "apps/*/vitest.config.ts",
-    "services/*/vitest.config.ts",
+  "packages/*/vitest.config.ts",
+  "apps/*/vitest.config.ts",
+  "services/*/vitest.config.ts",
+  {
+    test: {
+      name: "integration",
+      include: ["tests/integration/**/*.spec.ts"],
+    },
+  },
 ]);

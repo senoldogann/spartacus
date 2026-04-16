@@ -12,17 +12,17 @@ import { describe, it, expect } from "vitest";
  * 5. Score results
  */
 describe("Benchmark Run Pipeline", () => {
-    it.todo("creates ephemeral workspace from task snapshot");
+  it.todo("creates ephemeral workspace from task snapshot");
 
-    it.todo("runs agent adapter and captures output");
+  it.todo("runs agent adapter and captures output");
 
-    it.todo("applies patch to workspace");
+  it.todo("applies patch to workspace");
 
-    it.todo("runs test command in Docker sandbox");
+  it.todo("runs test command in Docker sandbox");
 
-    it.todo("produces correct evaluation verdict");
+  it.todo("produces correct evaluation verdict");
 
-    it.todo("cleans up workspace after completion");
+  it.todo("cleans up workspace after completion");
 
-    it.todo("handles agent timeout correctly");
+  it.todo("handles agent timeout correctly");
 });

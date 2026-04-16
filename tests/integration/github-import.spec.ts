@@ -11,13 +11,13 @@ import { describe, it, expect } from "vitest";
  * 4. Build task snapshots
  */
 describe("GitHub Import Pipeline", () => {
-    it.todo("fetches repository metadata from GitHub API");
+  it.todo("fetches repository metadata from GitHub API");
 
-    it.todo("imports merged PRs with pagination");
+  it.todo("imports merged PRs with pagination");
 
-    it.todo("filters bugfix candidates correctly");
+  it.todo("filters bugfix candidates correctly");
 
-    it.todo("builds task snapshots with valid diff content");
+  it.todo("builds task snapshots with valid diff content");
 
-    it.todo("skips PRs with too many changed files");
+  it.todo("skips PRs with too many changed files");
 });

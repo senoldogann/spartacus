@@ -25,6 +25,7 @@ Teams cannot objectively compare coding agents on their own codebase. Public ben
 ## Scope
 
 ### In Scope (v1)
+
 - GitHub repository ingestion
 - Merged bugfix PR replay
 - Docker-based sandboxed execution
@@ -34,6 +35,7 @@ Teams cannot objectively compare coding agents on their own codebase. Public ben
 - Web dashboard for results viewing
 
 ### Out of Scope
+
 - General LLM leaderboard
 - Observability/monitoring platform
 - Code review bot

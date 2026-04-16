@@ -7,6 +7,7 @@ RepoBench integrates with GitHub in two modes:
 ### Mode 1: Personal Access Token (v1)
 
 User provides a GitHub PAT with `repo` scope. RepoBench uses it for:
+
 - Fetching repository metadata
 - Listing merged pull requests
 - Downloading PR diffs
@@ -18,6 +19,7 @@ User provides a GitHub PAT with `repo` scope. RepoBench uses it for:
 ### Mode 2: GitHub App (post-v1)
 
 RepoBench GitHub App installed on organization/repo. Provides:
+
 - Higher API rate limits
 - Webhook-driven automation (nightly benchmarks, new PR triggers)
 - Fine-grained permissions
@@ -25,12 +27,12 @@ RepoBench GitHub App installed on organization/repo. Provides:
 
 ## API Usage
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /repos/:owner/:repo` | Repository metadata |
-| `GET /repos/:owner/:repo/pulls?state=closed` | Merged PR listing |
-| `GET /repos/:owner/:repo/pulls/:number` (diff accept header) | PR diff content |
-| `GET /repos/:owner/:repo/git/trees/:sha` | File tree at commit |
+| Endpoint                                                     | Purpose             |
+| ------------------------------------------------------------ | ------------------- |
+| `GET /repos/:owner/:repo`                                    | Repository metadata |
+| `GET /repos/:owner/:repo/pulls?state=closed`                 | Merged PR listing   |
+| `GET /repos/:owner/:repo/pulls/:number` (diff accept header) | PR diff content     |
+| `GET /repos/:owner/:repo/git/trees/:sha`                     | File tree at commit |
 
 ## Rate Limiting
 
@@ -40,8 +42,8 @@ RepoBench GitHub App installed on organization/repo. Provides:
 
 ## Webhook Events (post-v1)
 
-| Event | Action |
-|---|---|
-| `pull_request.closed` (merged) | Queue task creation |
-| `schedule` (cron) | Nightly benchmark runs |
-| `release.published` | Pre-release benchmark validation |
+| Event                          | Action                           |
+| ------------------------------ | -------------------------------- |
+| `pull_request.closed` (merged) | Queue task creation              |
+| `schedule` (cron)              | Nightly benchmark runs           |
+| `release.published`            | Pre-release benchmark validation |

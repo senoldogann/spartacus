@@ -1,6 +1,7 @@
 # Personal AGENTS.md
 
 ## Code Style
+
 - Comments in English only
 - Prefer functional programming over OOP
 - Use OOP classes only for connectors and interfaces to external systems

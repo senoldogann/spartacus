@@ -7,6 +7,7 @@ The MVP is the minimum viable version that proves RepoBench's core value proposi
 ## MVP Features
 
 ### Must Have
+
 - [ ] GitHub repository connection (PAT-based)
 - [ ] Merged PR import with bugfix filtering
 - [ ] Task snapshot creation (base commit + diff + test command)
@@ -21,11 +22,13 @@ The MVP is the minimum viable version that proves RepoBench's core value proposi
 - [ ] BullMQ worker for background execution
 
 ### Should Have
+
 - [ ] Web dashboard (read-only results viewer)
 - [ ] Run comparison view
 - [ ] Basic metric aggregation (pass rate, avg cost, avg duration)
 
 ### Won't Have (v1)
+
 - GitLab/Jira integration
 - GitHub App / webhook automation
 - LLM-as-judge evaluation

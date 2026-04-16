@@ -13,6 +13,7 @@
 
 **Risk**: Agent code execution breaks out of Docker container.
 **Mitigations**:
+
 - `--network none` by default
 - Read-only workspace mount
 - Memory and CPU limits
@@ -24,6 +25,7 @@
 
 **Risk**: Agent API keys or repo tokens appear in stdout/stderr logs.
 **Mitigations**:
+
 - Log scrubbing before storage (regex patterns for common token formats)
 - Artifact retention limits (90 days default)
 - No secrets passed via environment to sandbox containers
@@ -32,6 +34,7 @@
 
 **Risk**: Agent sends repository code to unauthorized endpoints.
 **Mitigations**:
+
 - Network isolation (no outbound by default)
 - When agent API access is needed, iptables whitelist only agent endpoints
 - DNS resolution restricted
@@ -40,6 +43,7 @@
 
 **Risk**: Cloned repository data persists on disk after benchmarks.
 **Mitigations**:
+
 - Ephemeral workspace directories deleted after each task
 - No persistent clone storage
 - Artifact store contains diffs, not full source
@@ -48,6 +52,7 @@
 
 **Risk**: Malicious agent adapter exfiltrates data.
 **Mitigations**:
+
 - Agent adapters run inside sandbox, not on host
 - Adapter code is reviewed and version-pinned
 - No dynamic code loading from external sources
@@ -56,7 +61,7 @@
 
 ```
 [Host System] ← Docker socket → [Sandbox Container] ← Agent API → [External]
-     │                                                
+     │
      ├── Postgres (local network)
      ├── Redis (local network)
      └── S3 Store (local network)

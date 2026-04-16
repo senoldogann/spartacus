@@ -13,11 +13,11 @@ export type TaskStatus = "pending" | "ready" | "skipped" | "error";
  * representing the starting state for a benchmark task.
  */
 export type TaskSnapshot = {
-    readonly baseCommitSha: string;
-    readonly headCommitSha: string;
-    readonly patchDiff: string;
-    readonly testCommand: string;
-    readonly changedFiles: ReadonlyArray<string>;
+  readonly baseCommitSha: string;
+  readonly headCommitSha: string;
+  readonly patchDiff: string;
+  readonly testCommand: string;
+  readonly changedFiles: ReadonlyArray<string>;
 };
 
 /**
@@ -25,28 +25,28 @@ export type TaskSnapshot = {
  * Represents a concrete problem for an agent to solve.
  */
 export type Task = {
-    readonly id: string;
-    readonly suiteId: string;
-    readonly repositoryId: string;
-    readonly type: TaskType;
-    readonly title: string;
-    readonly description: string;
-    readonly sourcePrNumber: number;
-    readonly sourcePrUrl: string;
-    readonly snapshot: TaskSnapshot;
-    readonly status: TaskStatus;
-    readonly createdAt: Date;
+  readonly id: string;
+  readonly suiteId: string;
+  readonly repositoryId: string;
+  readonly type: TaskType;
+  readonly title: string;
+  readonly description: string;
+  readonly sourcePrNumber: number;
+  readonly sourcePrUrl: string;
+  readonly snapshot: TaskSnapshot;
+  readonly status: TaskStatus;
+  readonly createdAt: Date;
 };
 
 /**
  * A collection of benchmark tasks grouped for execution.
  */
 export type BenchmarkSuite = {
-    readonly id: string;
-    readonly repositoryId: string;
-    readonly name: string;
-    readonly description: string;
-    readonly taskCount: number;
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
+  readonly id: string;
+  readonly repositoryId: string;
+  readonly name: string;
+  readonly description: string;
+  readonly taskCount: number;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
 };

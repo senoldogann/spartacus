@@ -2,12 +2,12 @@
 
 ## Severity Levels
 
-| Level | Description | Response Time |
-|---|---|---|
-| P1 - Critical | Security breach, data loss, complete service outage | Immediate |
-| P2 - High | Benchmark runs producing incorrect results | < 4 hours |
-| P3 - Medium | Performance degradation, non-blocking bugs | < 24 hours |
-| P4 - Low | UI issues, documentation gaps | Next sprint |
+| Level         | Description                                         | Response Time |
+| ------------- | --------------------------------------------------- | ------------- |
+| P1 - Critical | Security breach, data loss, complete service outage | Immediate     |
+| P2 - High     | Benchmark runs producing incorrect results          | < 4 hours     |
+| P3 - Medium   | Performance degradation, non-blocking bugs          | < 24 hours    |
+| P4 - Low      | UI issues, documentation gaps                       | Next sprint   |
 
 ## Security Incidents
 

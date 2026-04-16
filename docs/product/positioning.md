@@ -6,12 +6,12 @@ RepoBench exists because the current approach to evaluating coding agents is bro
 
 ### The Gap
 
-| What exists | What's missing |
-|---|---|
+| What exists                              | What's missing                                        |
+| ---------------------------------------- | ----------------------------------------------------- |
 | SWE-bench scores on curated Python repos | Benchmarks on YOUR stack (TypeScript, Go, Rust, etc.) |
-| Vendor-published accuracy numbers | Reproducible results on your private codebase |
-| One-off manual testing | Automated, repeatable comparison pipeline |
-| Generic coding challenges | Real-world bug fixes from your actual PRs |
+| Vendor-published accuracy numbers        | Reproducible results on your private codebase         |
+| One-off manual testing                   | Automated, repeatable comparison pipeline             |
+| Generic coding challenges                | Real-world bug fixes from your actual PRs             |
 
 ### Why Now?
 
@@ -22,9 +22,9 @@ RepoBench exists because the current approach to evaluating coding agents is bro
 
 ### Why Not Alternatives?
 
-| Alternative | Limitation |
-|---|---|
-| SWE-bench | Fixed dataset, Python-heavy, not your code |
+| Alternative            | Limitation                                  |
+| ---------------------- | ------------------------------------------- |
+| SWE-bench              | Fixed dataset, Python-heavy, not your code  |
 | LangSmith / Braintrust | General LLM eval, not coding-agent specific |
-| Manual testing | Not reproducible, not scalable |
-| Internal scripts | No sandboxing, no standardized metrics |
+| Manual testing         | Not reproducible, not scalable              |
+| Internal scripts       | No sandboxing, no standardized metrics      |

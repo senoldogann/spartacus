@@ -7,48 +7,47 @@ import { runCommand } from "./commands/run.js";
 import { reportCommand } from "./commands/report.js";
 import { compareCommand } from "./commands/compare.js";
 
-const COMMANDS: Record<string, (args: ReadonlyArray<string>) => Promise<void>> =
-{
-    init: initCommand,
-    import: importCommand,
-    run: runCommand,
-    report: reportCommand,
-    compare: compareCommand,
+const COMMANDS: Record<string, (args: ReadonlyArray<string>) => Promise<void>> = {
+  init: initCommand,
+  import: importCommand,
+  run: runCommand,
+  report: reportCommand,
+  compare: compareCommand,
 };
 
 async function main(): Promise<void> {
-    const { positionals } = parseArgs({
-        allowPositionals: true,
-        strict: false,
-    });
+  const { positionals } = parseArgs({
+    allowPositionals: true,
+    strict: false,
+  });
 
-    const commandName = positionals[0];
+  const commandName = positionals[0];
 
-    if (commandName === undefined || commandName === "help") {
-        printUsage();
-        return;
-    }
+  if (commandName === undefined || commandName === "help") {
+    printUsage();
+    return;
+  }
 
-    if (commandName === "--version") {
-        // eslint-disable-next-line no-console
-        console.log("repobench 0.0.1");
-        return;
-    }
+  if (commandName === "--version") {
+    // eslint-disable-next-line no-console
+    console.log("repobench 0.0.1");
+    return;
+  }
 
-    const command = COMMANDS[commandName];
-    if (command === undefined) {
-        // eslint-disable-next-line no-console
-        console.error(`Unknown command: ${commandName}`);
-        printUsage();
-        process.exit(1);
-    }
+  const command = COMMANDS[commandName];
+  if (command === undefined) {
+    // eslint-disable-next-line no-console
+    console.error(`Unknown command: ${commandName}`);
+    printUsage();
+    process.exit(1);
+  }
 
-    await command(positionals.slice(1));
+  await command(positionals.slice(1));
 }
 
 function printUsage(): void {
-    // eslint-disable-next-line no-console
-    console.log(`
+  // eslint-disable-next-line no-console
+  console.log(`
 repobench — Benchmark coding agents on your own repository history
 
 Usage:
@@ -68,7 +67,7 @@ Options:
 }
 
 main().catch((err: unknown) => {
-    // eslint-disable-next-line no-console
-    console.error("Fatal error:", err);
-    process.exit(1);
+  // eslint-disable-next-line no-console
+  console.error("Fatal error:", err);
+  process.exit(1);
 });

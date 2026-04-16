@@ -16,6 +16,7 @@ license: MIT
 ## When to Activate
 
 Load this skill when you need to:
+
 - Navigate or understand a large, unfamiliar codebase
 - Find all callers or callees of a function
 - Assess the blast radius before editing a file
@@ -30,6 +31,7 @@ Trigger phrases: "understand the codebase", "find usages of", "what calls X", "w
 ## When NOT to Use
 
 **DO NOT** activate this skill when:
+
 - The project is **already indexed in memory** from this session and you just need context recall (context is cached; reuse `get_context` directly from memory without re-indexing)
 - User is asking for **code refactoring guidance without needing graph traversal** (use code-reviewer skill instead)
 - User wants **static type analysis** or **linting feedback** (use language-specific reviewer skill)
@@ -52,11 +54,13 @@ NEVER assume a project is indexed without explicit mention or evidence.
 ## MCP Setup
 
 ### One-line install (configures Codex, Cursor, Claude Desktop, Antigravity automatically)
+
 ```bash
 npx @senoldogann/context-manager install
 ```
 
 ### Manual MCP config (VS Code Kilo / any MCP host)
+
 ```json
 {
   "context-manager": {
@@ -68,6 +72,7 @@ npx @senoldogann/context-manager install
 ```
 
 ### Minimal environment (~/.ccm/.env)
+
 ```ini
 # Option A: Local inference (recommended, no API cost)
 EMBEDDING_PROVIDER=ollama
@@ -85,6 +90,7 @@ CCM_ALLOWED_ROOTS=/Users/you/projects:/Users/you/sandbox
 ```
 
 Ollama prerequisites:
+
 ```bash
 ollama serve
 ollama pull mxbai-embed-large
@@ -95,6 +101,7 @@ ollama pull mxbai-embed-large
 CCM supports 4 distinct operational modes depending on your task. Each has a terminal state.
 
 ### Mode 1: Semantic Discovery (Entry Point for Exploration)
+
 **When:** You have a vague question like "find auth handling" but don't know the exact file/function.
 
 ```
@@ -115,6 +122,7 @@ CCM supports 4 distinct operational modes depending on your task. Each has a ter
 ---
 
 ### Mode 2: Cursor-Based Context (IDE Integration)
+
 **When:** Your editor cursor is at file:line and you need surrounding context.
 
 ```
@@ -131,6 +139,7 @@ CCM supports 4 distinct operational modes depending on your task. Each has a ter
 ---
 
 ### Mode 3: Graph Traversal (Surgical Dependency Analysis)
+
 **When:** You have a known node_id and need to drill into its callers, callees, or connections.
 
 ```
@@ -161,6 +170,7 @@ CCM supports 4 distinct operational modes depending on your task. Each has a ter
 ---
 
 ### Mode 4: Blast Radius & Recency (Pre-Edit Risk Assessment)
+
 **When:** Before editing a file, you MUST know what breaks and what changed recently.
 
 ```
@@ -206,15 +216,17 @@ PASS TO next skill/task/plan
 ---
 
 ### 1. `index_project`
+
 Index or refresh the code graph for a project. Safe to call repeatedly — performs incremental updates.
 
 **Parameters**
 
-| Parameter | Type | Required | Notes |
-|-----------|------|----------|-------|
-| `project_path` | string | yes | Absolute path to the project root |
+| Parameter      | Type   | Required | Notes                             |
+| -------------- | ------ | -------- | --------------------------------- |
+| `project_path` | string | yes      | Absolute path to the project root |
 
 **Example**
+
 ```json
 {
   "name": "index_project",
@@ -229,17 +241,19 @@ Index or refresh the code graph for a project. Safe to call repeatedly — perfo
 ---
 
 ### 2. `search_code`
+
 Hybrid semantic + graph search. Combines vector similarity and graph centrality for ranked results with explanations.
 
 **Parameters**
 
-| Parameter | Type | Required | Default | Notes |
-|-----------|------|----------|---------|-------|
-| `query` | string | yes | — | Natural language or code term |
-| `project_path` | string | yes | — | Absolute path to project root |
-| `limit` | integer | no | 5 | Max results to return |
+| Parameter      | Type    | Required | Default | Notes                         |
+| -------------- | ------- | -------- | ------- | ----------------------------- |
+| `query`        | string  | yes      | —       | Natural language or code term |
+| `project_path` | string  | yes      | —       | Absolute path to project root |
+| `limit`        | integer | no       | 5       | Max results to return         |
 
 **Example**
+
 ```json
 {
   "name": "search_code",
@@ -258,17 +272,19 @@ Hybrid semantic + graph search. Combines vector similarity and graph centrality 
 ---
 
 ### 3. `get_context`
+
 Cursor-aware context retrieval. Given a file path and line number, returns the most relevant surrounding code with graph-aware context.
 
 **Parameters**
 
-| Parameter | Type | Required | Notes |
-|-----------|------|----------|-------|
-| `file` | string | yes | Relative path from project root (e.g. `src/main.rs`) |
-| `line` | integer | yes | 1-based line number |
-| `project_path` | string | yes | Absolute path to project root |
+| Parameter      | Type    | Required | Notes                                                |
+| -------------- | ------- | -------- | ---------------------------------------------------- |
+| `file`         | string  | yes      | Relative path from project root (e.g. `src/main.rs`) |
+| `line`         | integer | yes      | 1-based line number                                  |
+| `project_path` | string  | yes      | Absolute path to project root                        |
 
 **Example**
+
 ```json
 {
   "name": "get_context",
@@ -285,17 +301,19 @@ Cursor-aware context retrieval. Given a file path and line number, returns the m
 ---
 
 ### 4. `find_nodes`
+
 Find graph nodes by name, file path fragment, or node ID fragment. Returns matching nodes with metadata and node_ids for use in other tools.
 
 **Parameters**
 
-| Parameter | Type | Required | Default | Notes |
-|-----------|------|----------|---------|-------|
-| `query` | string | yes | — | Function name, file path, or node ID fragment |
-| `project_path` | string | yes | — | Absolute path to project root |
-| `limit` | integer | no | 10 | Max results |
+| Parameter      | Type    | Required | Default | Notes                                         |
+| -------------- | ------- | -------- | ------- | --------------------------------------------- |
+| `query`        | string  | yes      | —       | Function name, file path, or node ID fragment |
+| `project_path` | string  | yes      | —       | Absolute path to project root                 |
+| `limit`        | integer | no       | 10      | Max results                                   |
 
 **Example**
+
 ```json
 {
   "name": "find_nodes",
@@ -312,16 +330,18 @@ Find graph nodes by name, file path fragment, or node ID fragment. Returns match
 ---
 
 ### 5. `read_graph`
+
 Inspect a specific node's full details and its direct graph connections (calls, called_by, contains).
 
 **Parameters**
 
-| Parameter | Type | Required | Notes |
-|-----------|------|----------|-------|
-| `node_id` | string | yes | Exact node ID from `find_nodes` or `search_code` output. Format: `./path/to/file.rs:node_type:line:col` |
-| `project_path` | string | yes | Absolute path to project root |
+| Parameter      | Type   | Required | Notes                                                                                                   |
+| -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------- |
+| `node_id`      | string | yes      | Exact node ID from `find_nodes` or `search_code` output. Format: `./path/to/file.rs:node_type:line:col` |
+| `project_path` | string | yes      | Absolute path to project root                                                                           |
 
 **Example**
+
 ```json
 {
   "name": "read_graph",
@@ -339,16 +359,18 @@ Inspect a specific node's full details and its direct graph connections (calls, 
 ---
 
 ### 6. `find_usages`
+
 Find all callers of a given node (reverse-edge traversal). Answers "who uses this function/class?".
 
 **Parameters**
 
-| Parameter | Type | Required | Notes |
-|-----------|------|----------|-------|
-| `node_id` | string | yes | Exact node ID |
-| `project_path` | string | yes | Absolute path to project root |
+| Parameter      | Type   | Required | Notes                         |
+| -------------- | ------ | -------- | ----------------------------- |
+| `node_id`      | string | yes      | Exact node ID                 |
+| `project_path` | string | yes      | Absolute path to project root |
 
 **Example**
+
 ```json
 {
   "name": "find_usages",
@@ -364,18 +386,20 @@ Find all callers of a given node (reverse-edge traversal). Answers "who uses thi
 ---
 
 ### 7. `trace_call_chain`
+
 BFS path search between two nodes. Finds how node A eventually calls node B through the call graph.
 
 **Parameters**
 
-| Parameter | Type | Required | Default | Notes |
-|-----------|------|----------|---------|-------|
-| `from_id` | string | yes | — | Starting node ID |
-| `to_id` | string | yes | — | Target node ID |
-| `project_path` | string | yes | — | Absolute path to project root |
-| `max_depth` | integer | no | 6 | BFS traversal depth limit |
+| Parameter      | Type    | Required | Default | Notes                         |
+| -------------- | ------- | -------- | ------- | ----------------------------- |
+| `from_id`      | string  | yes      | —       | Starting node ID              |
+| `to_id`        | string  | yes      | —       | Target node ID                |
+| `project_path` | string  | yes      | —       | Absolute path to project root |
+| `max_depth`    | integer | no       | 6       | BFS traversal depth limit     |
 
 **Example**
+
 ```json
 {
   "name": "trace_call_chain",
@@ -394,16 +418,18 @@ BFS path search between two nodes. Finds how node A eventually calls node B thro
 ---
 
 ### 8. `impact_of_change`
+
 Compute the blast radius of changing a file. Returns all nodes and files that depend on it, transitively.
 
 **Parameters**
 
-| Parameter | Type | Required | Notes |
-|-----------|------|----------|-------|
-| `file` | string | yes | Relative path from project root |
-| `project_path` | string | yes | Absolute path to project root |
+| Parameter      | Type   | Required | Notes                           |
+| -------------- | ------ | -------- | ------------------------------- |
+| `file`         | string | yes      | Relative path from project root |
+| `project_path` | string | yes      | Absolute path to project root   |
 
 **Example**
+
 ```json
 {
   "name": "impact_of_change",
@@ -419,17 +445,19 @@ Compute the blast radius of changing a file. Returns all nodes and files that de
 ---
 
 ### 9. `diff_context`
+
 Returns code context for recently changed files using git history. Ranks by recency and change frequency.
 
 **Parameters**
 
-| Parameter | Type | Required | Default | Notes |
-|-----------|------|----------|---------|-------|
-| `project_path` | string | yes | — | Absolute path to project root |
-| `days` | integer | no | 7 | Look-back window in days |
-| `limit` | integer | no | 10 | Max results |
+| Parameter      | Type    | Required | Default | Notes                         |
+| -------------- | ------- | -------- | ------- | ----------------------------- |
+| `project_path` | string  | yes      | —       | Absolute path to project root |
+| `days`         | integer | no       | 7       | Look-back window in days      |
+| `limit`        | integer | no       | 10      | Max results                   |
 
 **Example**
+
 ```json
 {
   "name": "diff_context",
@@ -449,7 +477,7 @@ Returns code context for recently changed files using git history. Ranks by rece
 
 All tools return markdown-formatted text:
 
-```
+````
 ## <Title> (Score: 0.87)
 **Reason:** <why this result was selected>
 **Node ID:** ./path/to/file.rs:function_item:42:0
@@ -459,9 +487,10 @@ All tools return markdown-formatted text:
 
 ```rust
 fn example() { ... }
-```
+````
 
 ---
+
 ```
 
 **Key fields to extract from output:**
@@ -474,7 +503,9 @@ fn example() { ... }
 
 Node IDs follow a rigid format:
 ```
+
 ./relative/path/to/file.ext:node_type:start_line:column
+
 ```
 
 Examples:
@@ -575,13 +606,14 @@ Before considering a task complete:
 
 ## Source & References
 
-**Repository:** https://github.com/senoldogann/LLM-Context-Manager  
-**npm Package:** `@senoldogann/context-manager` (v0.1.31+)  
-**Built with:** Rust, Tree-sitter, LanceDB, Petgraph  
-**License:** MIT  
+**Repository:** https://github.com/senoldogann/LLM-Context-Manager
+**npm Package:** `@senoldogann/context-manager` (v0.1.31+)
+**Built with:** Rust, Tree-sitter, LanceDB, Petgraph
+**License:** MIT
 
 **Further Reading:**
 - [Hybrid Ranking Algorithm](https://github.com/senoldogann/LLM-Context-Manager/blob/main/docs/hybrid-ranking.md) — weight tuning details
 - [.env.example](https://github.com/senoldogann/LLM-Context-Manager/blob/main/.env.example) — all configuration variables
 - [README](https://github.com/senoldogann/LLM-Context-Manager/blob/main/README.md) — installation and quick start
 - [MCP Protocol Spec](https://modelcontextprotocol.io/) — official MCP documentation
+```

@@ -13,45 +13,45 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // package.json lives one level above dist/ where this compiled file runs.
 const VERSION = (
-  JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as { version: string }
+    JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as { version: string }
 ).version;
 
 const COMMANDS: Record<string, (args: ReadonlyArray<string>) => Promise<void>> = {
-  init: initCommand,
-  import: importCommand,
-  run: runCommand,
-  report: reportCommand,
-  compare: compareCommand,
+    init: initCommand,
+    import: importCommand,
+    run: runCommand,
+    report: reportCommand,
+    compare: compareCommand,
 };
 
 async function main(): Promise<void> {
-  const [commandName, ...commandArgs] = process.argv.slice(2);
+    const [commandName, ...commandArgs] = process.argv.slice(2);
 
-  if (commandName === "--version") {
-    // eslint-disable-next-line no-console
-    console.log(`repobench ${VERSION}`);
-    return;
-  }
+    if (commandName === "--version") {
+        // eslint-disable-next-line no-console
+        console.log(`repobench ${VERSION}`);
+        return;
+    }
 
-  if (commandName === undefined || commandName === "help" || commandName === "--help") {
-    printUsage();
-    return;
-  }
+    if (commandName === undefined || commandName === "help" || commandName === "--help") {
+        printUsage();
+        return;
+    }
 
-  const command = COMMANDS[commandName];
-  if (command === undefined) {
-    // eslint-disable-next-line no-console
-    console.error(`Unknown command: ${commandName}`);
-    printUsage();
-    process.exit(1);
-  }
+    const command = COMMANDS[commandName];
+    if (command === undefined) {
+        // eslint-disable-next-line no-console
+        console.error(`Unknown command: ${commandName}`);
+        printUsage();
+        process.exit(1);
+    }
 
-  await command(commandArgs);
+    await command(commandArgs);
 }
 
 function printUsage(): void {
-  // eslint-disable-next-line no-console
-  console.log(`
+    // eslint-disable-next-line no-console
+    console.log(`
 repobench — Benchmark coding agents on your own repository history
 
 Usage:
@@ -71,7 +71,7 @@ Options:
 }
 
 main().catch((err: unknown) => {
-  // eslint-disable-next-line no-console
-  console.error("Fatal error:", err);
-  process.exit(1);
+    // eslint-disable-next-line no-console
+    console.error("Fatal error:", err);
+    process.exit(1);
 });

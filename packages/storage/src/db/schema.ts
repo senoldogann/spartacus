@@ -4,6 +4,8 @@
  * Used as a reference for migrations and data access layer.
  */
 
+export const SCHEMA_VERSION = "001";
+
 export const SCHEMA_SQL = `
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

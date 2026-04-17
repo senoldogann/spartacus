@@ -6,6 +6,18 @@ import {
   resolveRequestedAgentRuntimeConfig,
 } from "@repobench/agents";
 import type { AgentExecutionMode, AgentProfile, AgentProvider } from "@repobench/domain";
+import type { PaginationParams } from "@repobench/storage";
+
+const MAX_PAGE_LIMIT = 100;
+const DEFAULT_PAGE_LIMIT = 50;
+
+function parsePagination(query: Record<string, unknown>): PaginationParams {
+  const rawLimit = query["limit"];
+  const rawOffset = query["offset"];
+  const limit = typeof rawLimit === "string" ? Math.min(parseInt(rawLimit, 10) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT) : DEFAULT_PAGE_LIMIT;
+  const offset = typeof rawOffset === "string" ? Math.max(parseInt(rawOffset, 10) || 0, 0) : 0;
+  return { limit, offset };
+}
 
 type CreateAgentProfileBody = {
   readonly name: string;
@@ -65,13 +77,54 @@ function parseCreateAgentProfileBody(body: unknown): CreateAgentProfileBody | nu
   };
 }
 
+const createAgentProfileSchema = {
+  body: {
+    type: "object" as const,
+    required: ["name", "provider", "model"],
+    properties: {
+      name: { type: "string" as const, minLength: 1 },
+      provider: { type: "string" as const, enum: ["claude", "codex", "open-source"] },
+      model: { type: "string" as const, minLength: 1 },
+      executionMode: { type: "string" as const, enum: ["hosted", "local"] },
+      runtimeConfig: { type: "object" as const },
+      config: { type: "object" as const },
+    },
+    additionalProperties: false,
+  },
+};
+
+const SENSITIVE_CONFIG_KEYS = new Set([
+  "apiKey", "api_key", "secretKey", "secret_key", "token", "password",
+  "secret", "credentials", "accessKey", "access_key",
+]);
+
+function sanitizeAgentProfileConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(config)) {
+    if (SENSITIVE_CONFIG_KEYS.has(key)) {
+      sanitized[key] = "***REDACTED***";
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
+function sanitizeAgentProfile(profile: AgentProfile): Omit<AgentProfile, "config"> & { config: Record<string, unknown> } {
+  return {
+    ...profile,
+    config: sanitizeAgentProfileConfig(profile.config),
+  };
+}
+
 /**
  * Agent profile management endpoints.
  */
 export function registerAgentProfileRoutes(server: FastifyInstance): void {
-  server.get("/api/agent-profiles", async () => {
-    const agentProfiles = await server.agentProfiles.listAll();
-    return { agentProfiles };
+  server.get("/api/agent-profiles", async (request) => {
+    const pagination = parsePagination(request.query as Record<string, unknown>);
+    const agentProfiles = await server.agentProfiles.listAll(pagination);
+    return { agentProfiles: agentProfiles.map(sanitizeAgentProfile) };
   });
 
   server.get<{ Params: { id: string } }>("/api/agent-profiles/:id", async (request, reply) => {
@@ -80,10 +133,10 @@ export function registerAgentProfileRoutes(server: FastifyInstance): void {
       return reply.code(404).send({ error: "Agent profile not found" });
     }
 
-    return { agentProfile };
+    return { agentProfile: sanitizeAgentProfile(agentProfile) };
   });
 
-  server.post<{ Body: CreateAgentProfileBody }>("/api/agent-profiles", async (request, reply) => {
+  server.post<{ Body: CreateAgentProfileBody }>("/api/agent-profiles", { schema: createAgentProfileSchema }, async (request, reply) => {
     const body = parseCreateAgentProfileBody(request.body);
     if (body === null) {
       return reply

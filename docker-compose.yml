@@ -1,54 +1,137 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: repobench
       POSTGRES_PASSWORD: repobench
       POSTGRES_DB: repobench
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - repobench
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U repobench"]
+      test: [ "CMD-SHELL", "pg_isready -U repobench" ]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     # Enable AOF persistence so BullMQ job data survives container restarts.
     command: redis-server --appendonly yes
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
+    networks:
+      - repobench
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 5
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
+    networks:
+      - repobench
     healthcheck:
       # Use the MinIO built-in liveness endpoint instead of the mc binary,
       # which is not shipped in the minio/minio image.
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+    env_file: .env
+    environment:
+      # Override connection strings to use Docker internal service names
+      DATABASE_URL: postgresql://repobench:repobench@postgres:5432/repobench
+      REDIS_URL: redis://redis:6379
+      ARTIFACT_STORE_ENDPOINT: http://minio:9000
+    networks:
+      - repobench
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:3001/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://repobench:repobench@postgres:5432/repobench
+      REDIS_URL: redis://redis:6379
+      ARTIFACT_STORE_ENDPOINT: http://minio:9000
+    networks:
+      - repobench
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file: .env
+    environment:
+      # Server-side fetch target: uses Docker internal hostname so RSC → API
+      # requests work inside the container network.
+      API_INTERNAL_URL: http://api:3001
+      API_AUTH_TOKEN: "${API_AUTH_TOKEN}"
+    networks:
+      - repobench
+    depends_on:
+      api:
+        condition: service_healthy
+
+networks:
+  repobench:
+    driver: bridge
 
 volumes:
   pgdata:
   redisdata:
   miniodata:
+
+

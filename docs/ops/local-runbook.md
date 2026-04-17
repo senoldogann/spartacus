@@ -1,41 +1,63 @@
 # Local Development Runbook
 
-## First-Time Setup
+## Fastest Product Trial
+
+Use this when you want to try the product as a local deployment without running source files directly.
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/repobench/repobench.git
-cd repobench
+git clone https://github.com/senoldogann/spartacus.git
+cd spartacus
+
+# 2. Set up environment
+cp .env.example .env
+# Edit .env with your GitHub token, API auth token, and provider credentials if you want real runs
+
+# 3. Start the full local stack
+docker compose up -d --build
+
+# 4. Wait for services to be healthy
+docker compose ps  # postgres, redis, minio, and api should show healthy; web should be up
+```
+
+Then open `http://localhost:3000`.
+
+## Source Development Setup
+
+```bash
+# 1. Clone repository
+git clone https://github.com/senoldogann/spartacus.git
+cd spartacus
 
 # 2. Install dependencies
 pnpm install
 
 # 3. Set up environment
 cp .env.example .env
-# Edit .env with your GitHub token
+# Edit .env with your GitHub token, API auth token, and provider credentials if you want real runs
 
-# 4. Start infrastructure
-pnpm docker:up
+# 4. Start dependency services only
+docker compose up -d postgres redis minio
 
-# 5. Wait for services to be healthy
-docker compose ps  # All services should show "healthy"
-
-# 6. Run database migrations
-pnpm db:migrate
-
-# 7. Build all packages
+# 5. Install and build the workspace
+pnpm install
 pnpm build
 
-# 8. Verify
+# 6. Start source-based dev servers
+pnpm dev
+
+# 7. Verify
 pnpm test
 pnpm typecheck
 ```
 
+The API applies the current schema automatically on startup. The current `pnpm db:migrate` command is a placeholder and is not required for normal local setup.
+
 ## Daily Development
 
 ```bash
-# Start infrastructure if not running
-pnpm docker:up
+# Start only the dependency services
+docker compose up -d postgres redis minio
 
 # Start all dev servers (API, web, worker)
 pnpm dev
@@ -51,7 +73,7 @@ pnpm --filter @repobench/web dev
 
 ```bash
 docker compose down -v  # Remove volumes
-pnpm docker:up          # Restart fresh
+docker compose up -d --build
 ```
 
 ### Port conflicts

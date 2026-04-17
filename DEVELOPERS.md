@@ -11,8 +11,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/repobench/repobench.git
-cd repobench
+git clone https://github.com/senoldogann/spartacus.git
+cd spartacus
 
 # Install dependencies
 pnpm install
@@ -20,11 +20,8 @@ pnpm install
 # Copy environment variables
 cp .env.example .env
 
-# Start infrastructure (Postgres, Redis, plus an unused MinIO service kept for future artifact-store work)
-pnpm docker:up
-
-# Run database migrations
-pnpm db:migrate
+# Start only dependency services for local app development
+docker compose up -d postgres redis minio
 
 # Build all packages
 pnpm build
@@ -32,6 +29,36 @@ pnpm build
 # Start development servers
 pnpm dev
 ```
+
+## Working Modes
+
+Use one of these workflows, not both at the same time on the same ports.
+
+### Full Docker stack
+
+Use this when you want to try the product exactly as a local deployment:
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+docker compose ps
+```
+
+This starts Postgres, Redis, MinIO, the API, the worker, and the web dashboard.
+
+### Local code development
+
+Use this when you want to edit code and run the app with `pnpm dev`:
+
+```bash
+cp .env.example .env
+docker compose up -d postgres redis minio
+pnpm install
+pnpm build
+pnpm dev
+```
+
+The API applies the current schema automatically when it starts under `pnpm dev`. The current `pnpm db:migrate` script is a placeholder and should not be part of the normal setup flow.
 
 ## Project Layout
 
@@ -64,8 +91,8 @@ pnpm typecheck        # TypeScript type checking
 pnpm format           # Format all files
 pnpm format:check     # Check formatting
 pnpm clean            # Remove all build artifacts
-pnpm docker:up        # Start local infrastructure
-pnpm docker:down      # Stop local infrastructure
+pnpm docker:up        # Start the full Docker stack from docker-compose.yml
+pnpm docker:down      # Stop the full Docker stack
 ```
 
 ## Package Dependencies
@@ -86,13 +113,17 @@ Turborepo handles build ordering via the `turbo.json` pipeline configuration.
 
 See `.env.example` for all required variables. Key ones:
 
-| Variable         | Description                                             |
-| ---------------- | ------------------------------------------------------- |
-| `API_AUTH_TOKEN` | Shared bearer token required by protected API endpoints |
-| `DATABASE_URL`   | Postgres connection string                              |
-| `REDIS_URL`      | Redis connection string                                 |
-| `ARTIFACTS_DIR`  | Local directory for persisted patches and logs          |
-| `GITHUB_TOKEN`   | GitHub API access token                                 |
+| Variable                       | Description                                                        |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `API_AUTH_TOKEN`               | Shared bearer token required by protected API endpoints            |
+| `DATABASE_URL`                 | Postgres connection string                                         |
+| `REDIS_URL`                    | Redis connection string                                            |
+| `ARTIFACTS_DIR`                | Local directory for persisted patches and logs                     |
+| `GITHUB_TOKEN`                 | GitHub API access token                                            |
+| `ALLOW_HOSTED_AGENT_EXECUTION` | Must be `true` to allow Claude/Codex provider calls                |
+| `ANTHROPIC_API_KEY`            | Credential for hosted Claude agent profiles                        |
+| `OPENAI_API_KEY`               | Credential for hosted Codex agent profiles                         |
+| `OPEN_SOURCE_API_KEY`          | Credential passed to local OpenAI-compatible endpoints when needed |
 
 ## Adding a New Package
 

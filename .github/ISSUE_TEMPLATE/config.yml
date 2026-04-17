@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Documentation
-    url: https://github.com/repobench/repobench/tree/main/docs
+    url: https://github.com/senoldogann/spartacus/tree/main/docs
     about: Check the documentation before opening an issue
   - name: Security Vulnerabilities
-    url: https://github.com/repobench/repobench/blob/main/SECURITY.md
+    url: https://github.com/senoldogann/spartacus/blob/main/SECURITY.md
     about: Report security issues privately — do not open a public issue

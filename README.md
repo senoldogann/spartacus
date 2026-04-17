@@ -16,58 +16,169 @@ RepoBench replays merged pull requests from your real codebase as reproducible b
 ## Quick Start
 
 ```bash
-# Prerequisites: Node.js >=20, pnpm >=9, Docker
+# Prerequisites for the fastest trial: Docker
+# Prerequisites for CLI/local development: Node.js >=20, pnpm >=9, Docker
 
-# Clone and install
-git clone https://github.com/repobench/repobench.git
-cd repobench
+# Clone the repository
+git clone https://github.com/senoldogann/spartacus.git
+cd spartacus
+
+# Create a local environment file
+cp .env.example .env
+
+# Edit .env before your first real benchmark:
+# - set GITHUB_TOKEN
+# - set API_AUTH_TOKEN to a strong local bearer token
+# - set one of ANTHROPIC_API_KEY, OPENAI_API_KEY, or OPEN_SOURCE_API_KEY
+# - set ALLOW_HOSTED_AGENT_EXECUTION=true if you want Claude/Codex provider calls
+
+# Start the full local stack (Postgres, Redis, MinIO, API, worker, web)
+docker compose up -d --build
+
+# Wait for services to be ready
+# postgres, redis, minio, and api should become healthy; web should be up
+docker compose ps
+```
+
+Then visit `http://localhost:3000`.
+
+If you also want the CLI or local code development workflow, run:
+
+```bash
 pnpm install
-
-# Start local infrastructure (Postgres, Redis, plus an unused MinIO service kept for future artifact-store work)
-pnpm docker:up
-
-# Build all packages
 pnpm build
+```
 
-# Optional: create a local RepoBench config file
-pnpm --filter @repobench/cli -- repobench init --repo owner/repo
+## How To Use It Today
 
-# Hosted providers are opt-in because they send benchmark context off-box
-export ALLOW_HOSTED_AGENT_EXECUTION=true
+RepoBench currently has three user surfaces:
 
-# Create a hosted agent profile
+- **Web dashboard** for browsing repositories, runs, run details, and comparisons
+- **REST API** for creating agent profiles, repositories, suites, and runs
+- **CLI** for importing suites, starting runs, and printing reports
+
+The current dashboard is read-only for creation flows. After cloning the repo, the UI may look empty until you create a repository, a suite, and a run through the API or CLI.
+
+These URLs are the current entry points:
+
+- `/repos` lists connected repositories
+- `/runs?suiteId=<suite-id>` lists runs for one suite
+- `/runs/<run-id>` shows run details and attempts
+- `/compare?runA=<run-id>&runB=<run-id>` compares two runs from the same suite
+
+## First Real Benchmark
+
+Load the same auth token you put in `.env`:
+
+```bash
+export API_AUTH_TOKEN="<your API_AUTH_TOKEN from .env>"
+```
+
+Create an agent profile.
+
+Hosted Codex example:
+
+```bash
 curl -X POST http://localhost:3001/api/agent-profiles \
   -H "Authorization: Bearer $API_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Claude Sonnet","provider":"claude","model":"claude-sonnet-4.5","executionMode":"hosted","runtimeConfig":{"transport":"provider-api"}}'
+  -d '{"name":"Codex","provider":"codex","model":"gpt-4o","executionMode":"hosted","runtimeConfig":{"transport":"provider-api"}}'
 
-# Or create a local open-source agent profile (loopback OpenAI-compatible endpoint)
+# Copy the returned agentProfile.id value from the JSON response
+export AGENT_PROFILE_ID="<agent-profile-id>"
+```
+
+Local OpenAI-compatible example:
+
+```bash
 curl -X POST http://localhost:3001/api/agent-profiles \
   -H "Authorization: Bearer $API_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Local Qwen","provider":"open-source","model":"qwen2.5-coder:32b","executionMode":"local","runtimeConfig":{"transport":"openai-compatible-http","baseUrl":"http://127.0.0.1:11434/v1"}}'
+```
 
-# Register a repository
+Register a repository:
+
+```bash
 curl -X POST http://localhost:3001/api/repos \
   -H "Authorization: Bearer $API_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"owner":"owner","name":"repo"}'
 
-# Import a benchmark suite from merged PRs
-curl -X POST http://localhost:3001/api/repos/<repo-id>/suites \
+# Copy the returned repo.id value from the JSON response
+export REPO_ID="<repo-id>"
+```
+
+Create a benchmark suite from merged PRs:
+
+```bash
+curl -X POST http://localhost:3001/api/repos/$REPO_ID/suites \
   -H "Authorization: Bearer $API_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"default","testCommand":"pnpm test"}'
 
-# Start a benchmark run
-curl -X POST http://localhost:3001/api/suites/<suite-id>/runs \
+# Copy the returned suite.id value from the JSON response
+export SUITE_ID="<suite-id>"
+```
+
+Start a benchmark run:
+
+```bash
+curl -X POST http://localhost:3001/api/suites/$SUITE_ID/runs \
   -H "Authorization: Bearer $API_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"agentProfileId":"<agent-profile-id>"}'
+  -d '{"agentProfileId":"'"$AGENT_PROFILE_ID"'"}'
 
-# Fetch run results
+# Copy the returned run.id value from the JSON response
+export RUN_ID="<run-id>"
+```
+
+Fetch a run report:
+
+```bash
 curl -H "Authorization: Bearer $API_AUTH_TOKEN" \
-  http://localhost:3001/api/runs/<run-id>/results
+  http://localhost:3001/api/runs/$RUN_ID/report
+```
+
+Then open the corresponding dashboard pages by ID, for example:
+
+```text
+http://localhost:3000/runs?suiteId=$SUITE_ID
+http://localhost:3000/runs/$RUN_ID
+```
+
+## Empty Pages Explained
+
+- `/repos` is empty until you register at least one repository.
+- `/runs` without a `suiteId` only shows an instruction message.
+- `/compare` without both `runA` and `runB` only shows an instruction message.
+- If you want a form-based onboarding flow in the browser, that has not been built yet.
+
+## CLI Flow
+
+The CLI is useful once the API is running and your `.env` values are loaded:
+
+```bash
+# Optional: create a local RepoBench config file
+pnpm --filter @repobench/cli -- repobench init --repo owner/repo
+
+# Create a repo and suite from merged PRs
+pnpm --filter @repobench/cli -- repobench import \
+  --repo owner/name \
+  --test-command 'pnpm test'
+
+# Start a run after you have an agent profile ID
+pnpm --filter @repobench/cli -- repobench run \
+  --suite <suite-id> \
+  --agent <agent-profile-id>
+
+# Print a run report
+pnpm --filter @repobench/cli -- repobench report --run <run-id>
+
+# Compare two runs
+pnpm --filter @repobench/cli -- repobench compare \
+  --run-a <run-id-a> \
+  --run-b <run-id-b>
 ```
 
 ## Architecture
@@ -92,7 +203,7 @@ curl -H "Authorization: Bearer $API_AUTH_TOKEN" \
 ## Project Structure
 
 ```
-repobench/
+repo-root/
 ├── apps/
 │   ├── api/          # Fastify REST API
 │   ├── cli/          # CLI tool
@@ -128,6 +239,9 @@ RepoBench produces deterministic, verifiable metrics:
 ## Development
 
 ```bash
+# Local app development against only the dependency services
+docker compose up -d postgres redis minio
+
 pnpm install          # Install dependencies
 pnpm build            # Build all packages
 pnpm dev              # Start development servers

@@ -1,10 +1,15 @@
 import type React from "react";
+import type { RunStatus } from "@repobench/domain";
 import { apiClient } from "../../../lib/api-client";
 
 export const dynamic = "force-dynamic";
 
+type Run = {
+  readonly id: string;
+  readonly status: RunStatus;
+};
+
 type RunSummary = {
-  readonly status: string;
   readonly totalTasks: number;
   readonly completedTasks: number;
   readonly passedTasks: number;
@@ -14,7 +19,7 @@ type RunSummary = {
 };
 
 type Attempt = {
-  readonly attemptId: string;
+  readonly id: string;
   readonly taskId: string;
   readonly status: string;
   readonly attemptNumber: number;
@@ -54,12 +59,14 @@ export default async function RunDetailPage({
 }: RunDetailPageProps): Promise<React.JSX.Element> {
   const { runId } = await params;
 
+  let run: Run | null = null;
   let summary: RunSummary | null = null;
   let attempts: ReadonlyArray<Attempt> = [];
   let error: string | null = null;
 
   try {
     const data = await apiClient.runs.results(runId);
+    run = data.run as Run;
     summary = data.summary as RunSummary;
     attempts = data.attempts as ReadonlyArray<Attempt>;
   } catch (err: unknown) {
@@ -75,21 +82,28 @@ export default async function RunDetailPage({
     );
   }
 
+  if (!run || !summary) {
+    return (
+      <main className="p-8">
+        <h1 className="text-2xl font-bold">Run: {runId.slice(0, 8)}…</h1>
+        <p className="mt-6 text-gray-500">No run details available.</p>
+      </main>
+    );
+  }
+
   return (
     <main className="p-8">
       <h1 className="text-2xl font-bold">Run: {runId.slice(0, 8)}…</h1>
 
-      {summary !== null && (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {metricCard("Status", summary.status)}
-          {metricCard("Total Tasks", summary.totalTasks)}
-          {metricCard("Completed", summary.completedTasks)}
-          {metricCard("Passed", summary.passedTasks)}
-          {metricCard("Failed", summary.failedTasks)}
-          {metricCard("Completion Rate", `${(summary.completionRate * 100).toFixed(1)}%`)}
-          {metricCard("Pass Rate", `${(summary.passRate * 100).toFixed(1)}%`)}
-        </div>
-      )}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {metricCard("Status", run.status)}
+        {metricCard("Total Tasks", summary.totalTasks)}
+        {metricCard("Completed", summary.completedTasks)}
+        {metricCard("Passed", summary.passedTasks)}
+        {metricCard("Failed", summary.failedTasks)}
+        {metricCard("Completion Rate", `${(summary.completionRate * 100).toFixed(1)}%`)}
+        {metricCard("Pass Rate", `${(summary.passRate * 100).toFixed(1)}%`)}
+      </div>
 
       {attempts.length > 0 && (
         <div className="mt-8 overflow-x-auto">
@@ -113,9 +127,9 @@ export default async function RunDetailPage({
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {attempts.map((attempt) => (
-                <tr key={attempt.attemptId} className="hover:bg-gray-50">
+                <tr key={attempt.id} className="hover:bg-gray-50">
                   <td className="whitespace-nowrap px-4 py-3 text-sm font-mono">
-                    {attempt.attemptId.slice(0, 8)}…
+                    {attempt.id.slice(0, 8)}…
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-sm font-mono">
                     {attempt.taskId.slice(0, 8)}…

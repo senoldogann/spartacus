@@ -15,18 +15,7 @@ export const DENY_ALL: NetworkPolicy = {
 };
 
 /**
- * Network policy allowing access only to agent API endpoints.
- */
-export const AGENT_API_ONLY: NetworkPolicy = {
-  enabled: true,
-  allowedHosts: ["api.anthropic.com", "api.openai.com"],
-};
-
-/**
  * Returns the Docker network arguments for a given policy.
- *
- * Currently only DENY_ALL is supported. AGENT_API_ONLY requires host-level
- * firewall enforcement which has not been implemented yet.
  */
 export function toDockerNetworkArgs(policy: NetworkPolicy): ReadonlyArray<string> {
   if (!policy.enabled) {
@@ -34,7 +23,7 @@ export function toDockerNetworkArgs(policy: NetworkPolicy): ReadonlyArray<string
   }
 
   throw new Error(
-    "Network policy with enabled=true (e.g. AGENT_API_ONLY) requires host-level " +
-      "firewall enforcement which is not implemented. Use DENY_ALL until enforcement is in place.",
+    "Network policy with enabled=true requires host-level firewall enforcement which is not " +
+      "implemented. Use DENY_ALL until enforcement is in place.",
   );
 }

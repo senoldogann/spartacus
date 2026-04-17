@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { calculateCompletionRate, calculatePassRate } from "./run-metrics.js";
 
 /**
  * Comparison and reporting endpoints.
@@ -19,23 +20,32 @@ export function registerCompareRoutes(server: FastifyInstance): void {
         return reply.code(404).send({ error: "One or both runs not found" });
       }
 
+      if (a.suiteId !== b.suiteId) {
+        return reply.code(422).send({ error: "Runs must belong to the same suite" });
+      }
+
       return {
         comparison: {
+          suiteId: a.suiteId,
           runA: {
             id: a.id,
             status: a.status,
             totalTasks: a.totalTasks,
+            completedTasks: a.completedTasks,
             passedTasks: a.passedTasks,
             failedTasks: a.failedTasks,
-            passRate: a.completedTasks > 0 ? a.passedTasks / a.completedTasks : 0,
+            completionRate: calculateCompletionRate(a),
+            passRate: calculatePassRate(a),
           },
           runB: {
             id: b.id,
             status: b.status,
             totalTasks: b.totalTasks,
+            completedTasks: b.completedTasks,
             passedTasks: b.passedTasks,
             failedTasks: b.failedTasks,
-            passRate: b.completedTasks > 0 ? b.passedTasks / b.completedTasks : 0,
+            completionRate: calculateCompletionRate(b),
+            passRate: calculatePassRate(b),
           },
         },
       };
@@ -55,9 +65,11 @@ export function registerCompareRoutes(server: FastifyInstance): void {
         agentProfileId: run.agentProfileId,
         status: run.status,
         totalTasks: run.totalTasks,
+        completedTasks: run.completedTasks,
         passedTasks: run.passedTasks,
         failedTasks: run.failedTasks,
-        passRate: run.completedTasks > 0 ? run.passedTasks / run.completedTasks : 0,
+        completionRate: calculateCompletionRate(run),
+        passRate: calculatePassRate(run),
         createdAt: run.createdAt,
         completedAt: run.completedAt,
       },

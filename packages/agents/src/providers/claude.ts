@@ -39,16 +39,16 @@ function estimateCost(inputTokens: number, outputTokens: number): number {
  * Invokes Anthropic Claude API to solve a benchmark task.
  */
 export function createClaudeAdapter(): AgentAdapter {
-  const apiKey = process.env["ANTHROPIC_API_KEY"];
-  if (apiKey === undefined || apiKey.trim().length === 0) {
-    throw new Error("ANTHROPIC_API_KEY environment variable is required");
-  }
-
-  const client = new Anthropic({ apiKey, maxRetries: 2 });
-
   return {
     provider: "claude",
     solve: async ({ task, workspacePath, timeoutMs, agentProfile }): Promise<AgentResult> => {
+      const apiKeyEnvVar = agentProfile.runtimeConfig.apiKeyEnvVar ?? "ANTHROPIC_API_KEY";
+      const apiKey = process.env[apiKeyEnvVar];
+      if (apiKey === undefined || apiKey.trim().length === 0) {
+        throw new Error(`${apiKeyEnvVar} environment variable is required`);
+      }
+
+      const client = new Anthropic({ apiKey, maxRetries: 2 });
       const start = Date.now();
       const userPrompt = await buildHostedAgentPrompt(task, workspacePath, agentProfile);
 

@@ -2,6 +2,7 @@ import { registerRepoRoutes } from "./routes/repos.js";
 import { registerSuiteRoutes } from "./routes/suites.js";
 import { registerRunRoutes } from "./routes/runs.js";
 import { registerCompareRoutes } from "./routes/compare.js";
+import { registerAgentProfileRoutes } from "./routes/agent-profiles.js";
 import { authPlugin } from "./plugins/auth.js";
 import { dbPlugin } from "./plugins/db.js";
 
@@ -33,6 +34,7 @@ async function start(): Promise<void> {
 
   // Register route modules
   registerRepoRoutes(server);
+  registerAgentProfileRoutes(server);
   registerSuiteRoutes(server);
   registerRunRoutes(server);
   registerCompareRoutes(server);

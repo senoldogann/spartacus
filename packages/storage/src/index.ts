@@ -20,4 +20,4 @@ export {
 export { createDatabaseConnection } from "./db/connection.js";
 export type { DatabaseConnection } from "./db/connection.js";
 export type { ArtifactStore } from "./artifacts.js";
-export { buildArtifactKey } from "./artifacts.js";
+export { buildArtifactKey, resolveLocalArtifactPath } from "./artifacts.js";

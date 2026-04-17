@@ -2,7 +2,7 @@
 
 ## What is RepoBench?
 
-RepoBench is an open-source platform that benchmarks coding agents on your team's own repository history. Instead of relying on generic public benchmarks (SWE-bench, HumanEval), RepoBench replays your actual merged PRs and closed issues as reproducible tasks, runs agents in sandboxed environments, and produces deterministic, comparable scores.
+RepoBench is an open-source platform that benchmarks coding agents on your team's own repository history. Instead of relying on generic public benchmarks (SWE-bench, HumanEval), RepoBench replays your actual merged PRs as reproducible tasks, runs agents against those tasks, and produces deterministic, comparable scores.
 
 ## Target Users
 
@@ -19,8 +19,8 @@ Teams cannot objectively compare coding agents on their own codebase. Public ben
 
 1. Connect your GitHub repository
 2. Import merged PRs as benchmark tasks (starting with bugfix PRs)
-3. Run multiple agents on identical task sets in isolated sandboxes
-4. Compare results with deterministic metrics: patch apply, build, test pass, cost, speed
+3. Run multiple agents on identical task sets with sandboxed verification
+4. Compare results with deterministic metrics: patch apply, verification command pass, task pass, cost, speed
 
 ## Scope
 
@@ -28,10 +28,10 @@ Teams cannot objectively compare coding agents on their own codebase. Public ben
 
 - GitHub repository ingestion
 - Merged bugfix PR replay
-- Docker-based sandboxed execution
+- Docker-based verification sandbox
 - Claude, Codex, and open-source model adapters
 - Deterministic metrics (no LLM judge)
-- CLI and REST API
+- REST API and initial CLI bootstrap tooling
 - Web dashboard for results viewing
 
 ### Out of Scope

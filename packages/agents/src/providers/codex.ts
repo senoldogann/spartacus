@@ -39,16 +39,16 @@ function estimateCost(inputTokens: number, outputTokens: number): number {
  * Invokes OpenAI Chat API to solve a benchmark task.
  */
 export function createCodexAdapter(): AgentAdapter {
-  const apiKey = process.env["OPENAI_API_KEY"];
-  if (apiKey === undefined || apiKey.trim().length === 0) {
-    throw new Error("OPENAI_API_KEY environment variable is required");
-  }
-
-  const client = new OpenAI({ apiKey, maxRetries: 2 });
-
   return {
     provider: "codex",
     solve: async ({ task, workspacePath, timeoutMs, agentProfile }): Promise<AgentResult> => {
+      const apiKeyEnvVar = agentProfile.runtimeConfig.apiKeyEnvVar ?? "OPENAI_API_KEY";
+      const apiKey = process.env[apiKeyEnvVar];
+      if (apiKey === undefined || apiKey.trim().length === 0) {
+        throw new Error(`${apiKeyEnvVar} environment variable is required`);
+      }
+
+      const client = new OpenAI({ apiKey, maxRetries: 2 });
       const start = Date.now();
       const userPrompt = await buildHostedAgentPrompt(task, workspacePath, agentProfile);
 

@@ -1,6 +1,7 @@
 import type { Sql } from "postgres";
 import type {
   AgentProfile,
+  AgentRuntimeConfig,
   BenchmarkSuite,
   EvaluationVerdict,
   Repository,
@@ -8,6 +9,7 @@ import type {
   RunAttempt,
   Task,
 } from "@repobench/domain";
+import { getDefaultExecutionModeForProvider, normalizeAgentRuntimeConfig } from "@repobench/agents";
 import type {
   EvaluationVerdictStore,
   RepositoryStore,
@@ -93,11 +95,40 @@ function toRun(row: Record<string, unknown>): Run {
 }
 
 function toAgentProfile(row: Record<string, unknown>): AgentProfile {
+  const provider = row["provider"] as AgentProfile["provider"];
+  const storedExecutionMode = row["execution_mode"] as
+    | AgentProfile["executionMode"]
+    | null
+    | undefined;
+  const storedRuntimeConfig =
+    row["runtime_config"] !== undefined
+      ? parseJsonValue<AgentRuntimeConfig>(row["runtime_config"], "agent_profiles.runtime_config")
+      : undefined;
+
+  const shouldBackfillLegacyOpenSourceProfile =
+    provider === "open-source" &&
+    (storedExecutionMode === undefined ||
+      storedExecutionMode === null ||
+      storedExecutionMode === "hosted") &&
+    (storedRuntimeConfig === undefined ||
+      (storedRuntimeConfig.transport === "provider-api" &&
+        storedRuntimeConfig.apiKeyEnvVar === undefined));
+
+  const executionMode = shouldBackfillLegacyOpenSourceProfile
+    ? "local"
+    : (storedExecutionMode ?? getDefaultExecutionModeForProvider(provider));
+
   return {
     id: row["id"] as string,
     name: row["name"] as string,
-    provider: row["provider"] as AgentProfile["provider"],
+    provider,
     model: row["model"] as string,
+    executionMode,
+    runtimeConfig: normalizeAgentRuntimeConfig(
+      provider,
+      executionMode,
+      shouldBackfillLegacyOpenSourceProfile ? undefined : storedRuntimeConfig,
+    ),
     config: parseJsonValue<Record<string, unknown>>(row["config"], "agent_profiles.config"),
     createdAt: new Date(row["created_at"] as string),
   };
@@ -427,8 +458,8 @@ export function createAgentProfileStore(sql: Sql): AgentProfileStore {
 
     async create(profile: AgentProfile): Promise<AgentProfile> {
       const rows = await sql`
-        INSERT INTO agent_profiles (id, name, provider, model, config)
-        VALUES (${profile.id}, ${profile.name}, ${profile.provider}, ${profile.model}, ${sql.json(profile.config as Parameters<Sql["json"]>[0])})
+        INSERT INTO agent_profiles (id, name, provider, model, execution_mode, runtime_config, config)
+        VALUES (${profile.id}, ${profile.name}, ${profile.provider}, ${profile.model}, ${profile.executionMode}, ${sql.json(profile.runtimeConfig as Parameters<Sql["json"]>[0])}, ${sql.json(profile.config as Parameters<Sql["json"]>[0])})
         RETURNING *
       `;
       return toAgentProfile(rows[0] as Record<string, unknown>);

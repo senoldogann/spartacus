@@ -12,14 +12,14 @@ Connect Repo → Import PRs → Filter → Build Tasks → Create Suite
                                               Worker picks job
                                                         │
                                               ┌─────────┴──────────┐
-                                              │  For each task:    │
-                                              │  1. Create sandbox │
-                                              │  2. Run agent      │
-                                              │  3. Apply patch    │
-                                              │  4. Run tests      │
-                                              │  5. Score          │
-                                              │  6. Store results  │
-                                              │  7. Cleanup        │
+                                              │  For each task:         │
+                                              │  1. Clone base snapshot │
+                                              │  2. Run agent           │
+                                              │  3. Sandbox apply patch │
+                                              │  4. Sandbox verify      │
+                                              │  5. Score               │
+                                              │  6. Store results       │
+                                              │  7. Cleanup             │
                                               └─────────┬──────────┘
                                                         │
                                                         ▼
@@ -43,11 +43,13 @@ Connect Repo → Import PRs → Filter → Build Tasks → Create Suite
 2. Run is queued in Redis via BullMQ
 3. Worker picks up the job
 4. For each task in the suite:
-   - Create ephemeral Docker workspace from base commit snapshot
-   - Invoke agent adapter with task description and workspace
+   - Clone the base commit into an ephemeral workspace
+   - Invoke the configured agent execution lane:
+     - hosted provider API (explicit opt-in, off-box)
+     - local OpenAI-compatible endpoint (on-box)
    - Capture agent output (patch, stdout, stderr, tokens)
-   - Apply agent's patch to workspace
-   - Run project test suite
+   - Apply the patch inside Docker
+   - Run the verification command inside Docker
    - Score with deterministic evaluator
    - Store verdict and artifacts
 

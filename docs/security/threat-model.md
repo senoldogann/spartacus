@@ -36,8 +36,8 @@
 **Mitigations**:
 
 - Network isolation (no outbound by default)
-- When agent API access is needed, iptables whitelist only agent endpoints
-- DNS resolution restricted
+- Hosted provider calls are gated behind explicit operator opt-in
+- Fine-grained egress allowlisting is deferred until a host firewall or egress proxy exists
 
 ### T4: Repository Data at Rest
 
@@ -53,7 +53,8 @@
 **Risk**: Malicious agent adapter exfiltrates data.
 **Mitigations**:
 
-- Agent adapters run inside sandbox, not on host
+- Local/open-source execution can stay on-box via a local OpenAI-compatible endpoint
+- Hosted provider execution is explicit in agent profile config and treated as an off-box trust boundary
 - Adapter code is reviewed and version-pinned
 - No dynamic code loading from external sources
 
@@ -67,4 +68,4 @@
      └── S3 Store (local network)
 ```
 
-The Docker socket is the primary trust boundary. All agent execution happens inside containers.
+The Docker socket is the primary trust boundary for patch application and verification. Hosted model calls are a separate trust boundary and remain off-box by design when enabled.

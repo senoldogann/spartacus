@@ -20,6 +20,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@repobench/agents": "workspace:*",
     "@repobench/domain": "workspace:*",
     "postgres": "^3.4"
   },

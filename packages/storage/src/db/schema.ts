@@ -49,9 +49,26 @@ CREATE TABLE IF NOT EXISTS agent_profiles (
   name        TEXT NOT NULL,
   provider    TEXT NOT NULL,
   model       TEXT NOT NULL,
+  execution_mode TEXT NOT NULL DEFAULT 'hosted',
+  runtime_config JSONB NOT NULL DEFAULT '{"transport":"provider-api"}',
   config      JSONB NOT NULL DEFAULT '{}',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE agent_profiles
+  ADD COLUMN IF NOT EXISTS execution_mode TEXT NOT NULL DEFAULT 'hosted';
+
+ALTER TABLE agent_profiles
+  ADD COLUMN IF NOT EXISTS runtime_config JSONB NOT NULL DEFAULT '{"transport":"provider-api"}';
+
+UPDATE agent_profiles
+SET
+  execution_mode = 'local',
+  runtime_config = '{"transport":"openai-compatible-http","baseUrl":"http://127.0.0.1:11434/v1"}'
+WHERE
+  provider = 'open-source'
+  AND execution_mode = 'hosted'
+  AND runtime_config = '{"transport":"provider-api"}';
 
 CREATE TABLE IF NOT EXISTS runs (
   id               TEXT PRIMARY KEY,

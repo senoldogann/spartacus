@@ -115,6 +115,10 @@ CASCADE
       name: "Codex",
       provider: "codex",
       model: "gpt-4o",
+      executionMode: "hosted",
+      runtimeConfig: {
+        transport: "provider-api",
+      },
       config: { maxOutputTokens: 2048 },
       createdAt: new Date("2024-01-01T00:00:00.000Z"),
     };
@@ -246,5 +250,14 @@ CASCADE
     });
     expect(completedRun?.startedAt).not.toBeNull();
     expect(completedRun?.completedAt).not.toBeNull();
+
+    const storedAgentProfile = await agentProfileStore.findById(agentProfile.id);
+    expect(storedAgentProfile).toMatchObject({
+      id: agentProfile.id,
+      executionMode: "hosted",
+      runtimeConfig: {
+        transport: "provider-api",
+      },
+    });
   });
 });

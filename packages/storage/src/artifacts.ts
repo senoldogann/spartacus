@@ -1,3 +1,5 @@
+import { isAbsolute, relative, resolve } from "node:path";
+
 /**
  * Interface for storing and retrieving benchmark artifacts
  * (patches, logs, reports) in an S3-compatible object store.
@@ -42,4 +44,18 @@ export function buildArtifactKey(
   validateKeySegment(attemptId, "attemptId");
   validateKeySegment(filename, "filename");
   return `runs/${runId}/tasks/${taskId}/attempts/${attemptId}/${filename}`;
+}
+
+/**
+ * Resolves a local artifact key beneath the configured artifact root.
+ */
+export function resolveLocalArtifactPath(artifactsRoot: string, artifactKey: string): string {
+  const artifactPath = resolve(artifactsRoot, artifactKey);
+  const relativePath = relative(artifactsRoot, artifactPath);
+
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    throw new Error(`Artifact path escaped artifact root: key=${artifactKey}`);
+  }
+
+  return artifactPath;
 }

@@ -3,6 +3,23 @@
  */
 export type AgentProvider = "claude" | "codex" | "open-source";
 
+export type AgentExecutionMode = "hosted" | "local";
+
+export type AgentRuntimeTransport = "provider-api" | "openai-compatible-http";
+
+export type HostedAgentRuntimeConfig = {
+  readonly transport: "provider-api";
+  readonly apiKeyEnvVar?: string;
+};
+
+export type LocalOpenAiCompatibleRuntimeConfig = {
+  readonly transport: "openai-compatible-http";
+  readonly baseUrl: string;
+  readonly apiKeyEnvVar?: string;
+};
+
+export type AgentRuntimeConfig = HostedAgentRuntimeConfig | LocalOpenAiCompatibleRuntimeConfig;
+
 /**
  * Configuration profile for an agent participating in a benchmark run.
  */
@@ -11,6 +28,8 @@ export type AgentProfile = {
   readonly name: string;
   readonly provider: AgentProvider;
   readonly model: string;
+  readonly executionMode: AgentExecutionMode;
+  readonly runtimeConfig: AgentRuntimeConfig;
   readonly config: Record<string, unknown>;
   readonly createdAt: Date;
 };

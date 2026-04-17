@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { BenchmarkSuite } from "@repobench/domain";
+import { validateTestCommand } from "@repobench/evaluator";
 import { createSnapshot, fetchMergedPrs } from "@repobench/repo-ingest";
 import { filterBugfixCandidates, buildBugfixTask } from "@repobench/task-builder";
 
@@ -89,6 +90,14 @@ export function registerSuiteRoutes(server: FastifyInstance): void {
         return reply.code(404).send({ error: "Repository not found" });
       }
 
+      const resolvedTestCommand = testCommand ?? "npm test";
+      try {
+        validateTestCommand(resolvedTestCommand);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return reply.code(400).send({ error: message });
+      }
+
       const token = process.env["GITHUB_TOKEN"];
       if (token === undefined || token.trim().length === 0) {
         return reply.code(500).send({ error: "GITHUB_TOKEN not configured" });
@@ -103,7 +112,6 @@ export function registerSuiteRoutes(server: FastifyInstance): void {
       }
 
       const suiteId = randomUUID();
-      const resolvedTestCommand = testCommand ?? "npm test";
       const tasks = await Promise.all(
         candidates.map(async (candidate) => {
           const snapshot = await createSnapshot(

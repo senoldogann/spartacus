@@ -1,4 +1,7 @@
 import { Queue } from "bullmq";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
   AgentProfile,
@@ -18,6 +21,8 @@ import type {
   SuiteStore,
   TaskStore,
 } from "../../packages/storage/src/db/repositories.js";
+import { registerAgentProfileRoutes } from "../../apps/api/src/routes/agent-profiles.js";
+import { registerCompareRoutes } from "../../apps/api/src/routes/compare.js";
 import { registerRepoRoutes } from "../../apps/api/src/routes/repos.js";
 import { registerSuiteRoutes } from "../../apps/api/src/routes/suites.js";
 
@@ -30,6 +35,7 @@ type ReplyPayload = {
 
 type TestReply = {
   code: (statusCode: number) => TestReply;
+  type: (_contentType: string) => TestReply;
   send: (payload: unknown) => unknown;
   readonly statusCode: number;
   readonly payload: unknown;
@@ -72,6 +78,10 @@ const agentProfileFixture: AgentProfile = {
   name: "Claude Sonnet",
   provider: "claude",
   model: "claude-3-7-sonnet-20250219",
+  executionMode: "hosted",
+  runtimeConfig: {
+    transport: "provider-api",
+  },
   config: {},
   createdAt: new Date("2024-01-01T00:00:00.000Z"),
 };
@@ -81,13 +91,41 @@ const runResultFixture: Run = {
   suiteId: suiteFixture.id,
   agentProfileId: agentProfileFixture.id,
   status: "completed",
-  totalTasks: 1,
-  completedTasks: 1,
+  totalTasks: 4,
+  completedTasks: 2,
   passedTasks: 1,
-  failedTasks: 0,
+  failedTasks: 1,
   startedAt: new Date("2024-01-02T00:00:00.000Z"),
   completedAt: new Date("2024-01-02T00:05:00.000Z"),
   createdAt: new Date("2024-01-02T00:00:00.000Z"),
+};
+
+const comparisonRunFixture: Run = {
+  id: "run-results-2",
+  suiteId: suiteFixture.id,
+  agentProfileId: agentProfileFixture.id,
+  status: "completed",
+  totalTasks: 4,
+  completedTasks: 4,
+  passedTasks: 3,
+  failedTasks: 1,
+  startedAt: new Date("2024-01-03T00:00:00.000Z"),
+  completedAt: new Date("2024-01-03T00:05:00.000Z"),
+  createdAt: new Date("2024-01-03T00:00:00.000Z"),
+};
+
+const crossSuiteRunFixture: Run = {
+  id: "run-results-3",
+  suiteId: "suite-2",
+  agentProfileId: agentProfileFixture.id,
+  status: "completed",
+  totalTasks: 4,
+  completedTasks: 4,
+  passedTasks: 4,
+  failedTasks: 0,
+  startedAt: new Date("2024-01-04T00:00:00.000Z"),
+  completedAt: new Date("2024-01-04T00:05:00.000Z"),
+  createdAt: new Date("2024-01-04T00:00:00.000Z"),
 };
 
 const runAttemptFixture: RunAttempt = {
@@ -99,9 +137,9 @@ const runAttemptFixture: RunAttempt = {
   status: "completed",
   startedAt: new Date("2024-01-02T00:00:10.000Z"),
   completedAt: new Date("2024-01-02T00:01:10.000Z"),
-  patchArtifactPath: "patch.diff",
-  stdoutLogPath: "stdout.log",
-  stderrLogPath: "stderr.log",
+  patchArtifactPath: "runs/run-results-1/tasks/task-1/attempts/attempt-1/patch.diff",
+  stdoutLogPath: "runs/run-results-1/tasks/task-1/attempts/attempt-1/stdout.log",
+  stderrLogPath: "runs/run-results-1/tasks/task-1/attempts/attempt-1/stderr.log",
   tokenCount: 321,
   estimatedCostUsd: 0.0123,
   durationMs: 60_000,
@@ -188,6 +226,7 @@ function createSuiteStore(): SuiteStore {
     findByRepository: async (repositoryId: string) =>
       repositoryId === suiteFixture.repositoryId ? [suiteFixture] : [],
     create: async (suite: BenchmarkSuite) => suite,
+    deleteById: async () => undefined,
   };
 }
 
@@ -212,9 +251,9 @@ function createRunStore(createdRuns: Run[]): RunStore {
   };
 }
 
-function createRunAttemptStore(): RunAttemptStore {
+function createRunAttemptStore(runAttempt: RunAttempt): RunAttemptStore {
   return {
-    findByRun: async (runId: string) => (runId === runResultFixture.id ? [runAttemptFixture] : []),
+    findByRun: async (runId: string) => (runId === runResultFixture.id ? [runAttempt] : []),
     create: async (attempt: RunAttempt) => attempt,
     update: async () => undefined,
   };
@@ -229,11 +268,17 @@ function createEvaluationVerdictStore(): EvaluationVerdictStore {
 }
 
 function createAgentProfileStore(): AgentProfileStore {
+  const agentProfiles: AgentProfile[] = [agentProfileFixture];
+
   return {
-    findById: async (id: string) => (id === agentProfileFixture.id ? agentProfileFixture : null),
-    findByProvider: async () => [agentProfileFixture],
-    create: async (profile: AgentProfile) => profile,
-    listAll: async () => [agentProfileFixture],
+    findById: async (id: string) => agentProfiles.find((profile) => profile.id === id) ?? null,
+    findByProvider: async (provider: AgentProfile["provider"]) =>
+      agentProfiles.filter((profile) => profile.provider === provider),
+    create: async (profile: AgentProfile) => {
+      agentProfiles.push(profile);
+      return profile;
+    },
+    listAll: async () => [...agentProfiles],
   };
 }
 
@@ -244,6 +289,9 @@ function createReply(): TestReply {
   return {
     code(nextStatusCode: number): TestReply {
       statusCode = nextStatusCode;
+      return this;
+    },
+    type(): TestReply {
       return this;
     },
     send(nextPayload: unknown): unknown {
@@ -259,11 +307,16 @@ function createReply(): TestReply {
   };
 }
 
-function createTestServer(): TestServer {
+function createTestServer(
+  options: {
+    readonly runAttempt?: RunAttempt;
+  } = {},
+): TestServer {
   const registeredPostRoutes = new Map<string, RouteHandler>();
   const registeredGetRoutes = new Map<string, RouteHandler>();
   const onCloseHooks: Array<() => Promise<void>> = [];
   const createdRuns: Run[] = [];
+  const runAttempt = options.runAttempt ?? runAttemptFixture;
 
   const server = {
     post(path: string, handler: RouteHandler): void {
@@ -281,7 +334,7 @@ function createTestServer(): TestServer {
     suites: createSuiteStore(),
     tasks: createTaskStore(),
     runs: createRunStore(createdRuns),
-    runAttempts: createRunAttemptStore(),
+    runAttempts: createRunAttemptStore(runAttempt),
     evaluationVerdicts: createEvaluationVerdictStore(),
     agentProfiles: createAgentProfileStore(),
     registeredPostRoutes,
@@ -309,15 +362,25 @@ async function invokeRoute(handler: RouteHandler, request: unknown): Promise<Rep
 
 describe("API route validation and queueing", () => {
   let previousRedisUrl: string | undefined;
+  let previousAllowHostedAgentExecution: string | undefined;
+  let previousAnthropicApiKey: string | undefined;
+  let previousOpenAiApiKey: string | undefined;
   let queue: Queue | null;
 
   beforeEach(async () => {
     previousRedisUrl = process.env["REDIS_URL"];
+    previousAllowHostedAgentExecution = process.env["ALLOW_HOSTED_AGENT_EXECUTION"];
+    previousAnthropicApiKey = process.env["ANTHROPIC_API_KEY"];
+    previousOpenAiApiKey = process.env["OPENAI_API_KEY"];
     process.env["REDIS_URL"] = "redis://127.0.0.1:6379/15";
+    process.env["ALLOW_HOSTED_AGENT_EXECUTION"] = "true";
+    process.env["ANTHROPIC_API_KEY"] = "test-anthropic-key";
+    process.env["OPENAI_API_KEY"] = "test-openai-key";
     queue = new Queue("benchmark-run", {
       connection: createQueueConnection(process.env["REDIS_URL"]),
     });
     await queue.drain(true);
+    await mkdir(join(process.cwd(), ".repobench-artifacts"), { recursive: true });
   });
 
   afterEach(async () => {
@@ -328,10 +391,29 @@ describe("API route validation and queueing", () => {
 
     if (previousRedisUrl === undefined) {
       delete process.env["REDIS_URL"];
-      return;
+    } else {
+      process.env["REDIS_URL"] = previousRedisUrl;
     }
 
-    process.env["REDIS_URL"] = previousRedisUrl;
+    if (previousAllowHostedAgentExecution === undefined) {
+      delete process.env["ALLOW_HOSTED_AGENT_EXECUTION"];
+    } else {
+      process.env["ALLOW_HOSTED_AGENT_EXECUTION"] = previousAllowHostedAgentExecution;
+    }
+
+    if (previousAnthropicApiKey === undefined) {
+      delete process.env["ANTHROPIC_API_KEY"];
+    } else {
+      process.env["ANTHROPIC_API_KEY"] = previousAnthropicApiKey;
+    }
+
+    if (previousOpenAiApiKey === undefined) {
+      delete process.env["OPENAI_API_KEY"];
+    } else {
+      process.env["OPENAI_API_KEY"] = previousOpenAiApiKey;
+    }
+
+    await rm(join(process.cwd(), ".repobench-artifacts"), { recursive: true, force: true });
   });
 
   it("returns 400 for missing repo, suite, and run bodies", async () => {
@@ -413,6 +495,8 @@ describe("API route validation and queueing", () => {
       suiteId: suiteFixture.id,
       agentProfileId: agentProfileFixture.id,
     });
+    expect(job?.opts.attempts).toBe(3);
+    expect(job?.opts.backoff).toEqual({ type: "exponential", delay: 1_000 });
 
     await server.closeServer();
   });
@@ -435,16 +519,337 @@ describe("API route validation and queueing", () => {
     expect(response.body).toEqual({
       run: runResultFixture,
       summary: {
-        totalTasks: 1,
-        completedTasks: 1,
+        totalTasks: 4,
+        completedTasks: 2,
         passedTasks: 1,
-        failedTasks: 0,
-        passRate: 1,
+        failedTasks: 1,
+        completionRate: 0.5,
+        passRate: 0.25,
       },
       attempts: [runAttemptFixture],
       verdicts: [evaluationVerdictFixture],
     });
 
     await server.closeServer();
+  });
+
+  it("lists and creates agent profiles", async () => {
+    const server = createTestServer();
+    registerAgentProfileRoutes(server);
+
+    const listHandler = server.registeredGetRoutes.get("/api/agent-profiles");
+    const createHandler = server.registeredPostRoutes.get("/api/agent-profiles");
+    if (listHandler === undefined || createHandler === undefined) {
+      throw new Error("Expected agent profile routes to be registered");
+    }
+
+    const initialListResponse = await invokeRoute(listHandler, {});
+    expect(initialListResponse.statusCode).toBe(200);
+    expect(initialListResponse.body).toEqual({
+      agentProfiles: [agentProfileFixture],
+    });
+
+    const createResponse = await invokeRoute(createHandler, {
+      body: {
+        name: "Codex",
+        provider: "codex",
+        model: "gpt-5.3-codex",
+        executionMode: "hosted",
+        runtimeConfig: {
+          transport: "provider-api",
+        },
+        config: { temperature: 0 },
+      },
+    });
+    expect(createResponse.statusCode).toBe(201);
+
+    const createdBody = createResponse.body as { agentProfile: AgentProfile };
+    expect(createdBody.agentProfile.name).toBe("Codex");
+    expect(createdBody.agentProfile.provider).toBe("codex");
+    expect(createdBody.agentProfile.model).toBe("gpt-5.3-codex");
+    expect(createdBody.agentProfile.executionMode).toBe("hosted");
+    expect(createdBody.agentProfile.runtimeConfig).toEqual({ transport: "provider-api" });
+    expect(createdBody.agentProfile.config).toEqual({ temperature: 0 });
+
+    const finalListResponse = await invokeRoute(listHandler, {});
+    expect(finalListResponse.statusCode).toBe(200);
+    expect(finalListResponse.body).toEqual({
+      agentProfiles: [agentProfileFixture, createdBody.agentProfile],
+    });
+  });
+
+  it("rejects non-loopback local model endpoints", async () => {
+    const server = createTestServer();
+    registerAgentProfileRoutes(server);
+
+    const createHandler = server.registeredPostRoutes.get("/api/agent-profiles");
+    if (createHandler === undefined) {
+      throw new Error("Expected agent profile create route to be registered");
+    }
+
+    const response = await invokeRoute(createHandler, {
+      body: {
+        name: "Remote OSS",
+        provider: "open-source",
+        model: "qwen2.5-coder:32b",
+        executionMode: "local",
+        runtimeConfig: {
+          transport: "openai-compatible-http",
+          baseUrl: "https://remote.example/v1",
+        },
+      },
+    });
+
+    expect(response).toEqual({
+      statusCode: 400,
+      body: {
+        error:
+          "Local open-source execution requires a loopback runtimeConfig.baseUrl (localhost/127.0.0.1/::1)",
+      },
+    });
+  });
+
+  it("accepts IPv6 loopback local model endpoints", async () => {
+    const server = createTestServer();
+    registerAgentProfileRoutes(server);
+
+    const createHandler = server.registeredPostRoutes.get("/api/agent-profiles");
+    if (createHandler === undefined) {
+      throw new Error("Expected agent profile create route to be registered");
+    }
+
+    const response = await invokeRoute(createHandler, {
+      body: {
+        name: "IPv6 OSS",
+        provider: "open-source",
+        model: "qwen2.5-coder:32b",
+        executionMode: "local",
+        runtimeConfig: {
+          transport: "openai-compatible-http",
+          baseUrl: "http://[::1]:11434/v1",
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+  });
+
+  it("rejects cross-suite comparisons and reports total-task rates", async () => {
+    const server = createTestServer();
+    server.createdRuns.push(runResultFixture, comparisonRunFixture, crossSuiteRunFixture);
+    registerCompareRoutes(server);
+
+    const compareHandler = server.registeredGetRoutes.get("/api/compare");
+    const reportHandler = server.registeredGetRoutes.get("/api/runs/:id/report");
+    if (compareHandler === undefined || reportHandler === undefined) {
+      throw new Error("Expected compare routes to be registered");
+    }
+
+    const compareResponse = await invokeRoute(compareHandler, {
+      query: { runA: runResultFixture.id, runB: comparisonRunFixture.id },
+    });
+    expect(compareResponse.statusCode).toBe(200);
+    expect(compareResponse.body).toEqual({
+      comparison: {
+        suiteId: suiteFixture.id,
+        runA: {
+          id: runResultFixture.id,
+          status: runResultFixture.status,
+          totalTasks: 4,
+          completedTasks: 2,
+          passedTasks: 1,
+          failedTasks: 1,
+          completionRate: 0.5,
+          passRate: 0.25,
+        },
+        runB: {
+          id: comparisonRunFixture.id,
+          status: comparisonRunFixture.status,
+          totalTasks: 4,
+          completedTasks: 4,
+          passedTasks: 3,
+          failedTasks: 1,
+          completionRate: 1,
+          passRate: 0.75,
+        },
+      },
+    });
+
+    const crossSuiteResponse = await invokeRoute(compareHandler, {
+      query: { runA: runResultFixture.id, runB: crossSuiteRunFixture.id },
+    });
+    expect(crossSuiteResponse).toEqual({
+      statusCode: 422,
+      body: { error: "Runs must belong to the same suite" },
+    });
+
+    const reportResponse = await invokeRoute(reportHandler, {
+      params: { id: runResultFixture.id },
+    });
+    expect(reportResponse.statusCode).toBe(200);
+    expect(reportResponse.body).toEqual({
+      report: {
+        runId: runResultFixture.id,
+        suiteId: runResultFixture.suiteId,
+        agentProfileId: runResultFixture.agentProfileId,
+        status: runResultFixture.status,
+        totalTasks: 4,
+        completedTasks: 2,
+        passedTasks: 1,
+        failedTasks: 1,
+        completionRate: 0.5,
+        passRate: 0.25,
+        createdAt: runResultFixture.createdAt,
+        completedAt: runResultFixture.completedAt,
+      },
+    });
+  });
+
+  it("rejects unsupported suite test commands before import work starts", async () => {
+    const server = createTestServer();
+    registerSuiteRoutes(server);
+
+    const createSuiteHandler = server.registeredPostRoutes.get("/api/repos/:repoId/suites");
+    if (createSuiteHandler === undefined) {
+      throw new Error("Expected suite creation handler to be registered");
+    }
+
+    const response = await invokeRoute(createSuiteHandler, {
+      params: { repoId: repositoryFixture.id },
+      body: {
+        name: "default",
+        testCommand: 'pnpm --filter "@repobench/api" test',
+      },
+    });
+
+    expect(response).toEqual({
+      statusCode: 400,
+      body: {
+        error:
+          "testCommand contains unsupported shell characters; use a simple command with space-delimited arguments",
+      },
+    });
+  });
+
+  it("serves persisted attempt artifacts", async () => {
+    const server = createTestServer();
+    server.createdRuns.push(runResultFixture);
+    registerRunRoutes(server);
+
+    const artifactHandler = server.registeredGetRoutes.get(
+      "/api/runs/:id/attempts/:attemptId/artifacts/:artifactKind",
+    );
+    if (artifactHandler === undefined) {
+      throw new Error("Expected artifact route to be registered");
+    }
+
+    await mkdir(
+      join(
+        process.cwd(),
+        ".repobench-artifacts",
+        "runs",
+        "run-results-1",
+        "tasks",
+        "task-1",
+        "attempts",
+        "attempt-1",
+      ),
+      {
+        recursive: true,
+      },
+    );
+    await writeFile(
+      join(
+        process.cwd(),
+        ".repobench-artifacts",
+        "runs",
+        "run-results-1",
+        "tasks",
+        "task-1",
+        "attempts",
+        "attempt-1",
+        "stdout.log",
+      ),
+      "artifact stdout",
+      "utf8",
+    );
+
+    const response = await invokeRoute(artifactHandler, {
+      params: {
+        id: runResultFixture.id,
+        attemptId: runAttemptFixture.id,
+        artifactKind: "stdout",
+      },
+    });
+
+    expect(response).toEqual({
+      statusCode: 200,
+      body: "artifact stdout",
+    });
+
+    await server.closeServer();
+  });
+
+  it("serves legacy absolute-path attempt artifacts", async () => {
+    const legacyArtifactsDirectory = await mkdtemp(join(tmpdir(), "repobench-legacy-artifacts-"));
+    const legacyStdoutPath = join(legacyArtifactsDirectory, "stdout.log");
+    await writeFile(legacyStdoutPath, "legacy artifact stdout", "utf8");
+
+    const server = createTestServer({
+      runAttempt: {
+        ...runAttemptFixture,
+        stdoutLogPath: legacyStdoutPath,
+      },
+    });
+    server.createdRuns.push(runResultFixture);
+    registerRunRoutes(server);
+
+    const artifactHandler = server.registeredGetRoutes.get(
+      "/api/runs/:id/attempts/:attemptId/artifacts/:artifactKind",
+    );
+    if (artifactHandler === undefined) {
+      throw new Error("Expected artifact route to be registered");
+    }
+
+    const response = await invokeRoute(artifactHandler, {
+      params: {
+        id: runResultFixture.id,
+        attemptId: runAttemptFixture.id,
+        artifactKind: "stdout",
+      },
+    });
+
+    expect(response).toEqual({
+      statusCode: 200,
+      body: "legacy artifact stdout",
+    });
+
+    await server.closeServer();
+    await rm(legacyArtifactsDirectory, { recursive: true, force: true });
+  });
+
+  it("blocks hosted runs when operator opt-in is disabled", async () => {
+    process.env["ALLOW_HOSTED_AGENT_EXECUTION"] = "false";
+
+    const server = createTestServer();
+    registerRunRoutes(server);
+
+    const createRunHandler = server.registeredPostRoutes.get("/api/suites/:suiteId/runs");
+    if (createRunHandler === undefined) {
+      throw new Error("Expected run creation handler to be registered");
+    }
+
+    const response = await invokeRoute(createRunHandler, {
+      params: { suiteId: suiteFixture.id },
+      body: { agentProfileId: agentProfileFixture.id },
+    });
+
+    expect(response).toEqual({
+      statusCode: 403,
+      body: {
+        error:
+          "Hosted agent execution is disabled. Set ALLOW_HOSTED_AGENT_EXECUTION=true to allow provider API calls.",
+      },
+    });
   });
 });

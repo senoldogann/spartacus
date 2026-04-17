@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { Queue } from "bullmq";
 import type { FastifyInstance } from "fastify";
+import { getRequiredCredentialEnvVar, isHostedAgentProfile } from "@repobench/agents";
 import type { Run, RunAttempt } from "@repobench/domain";
+import { resolveLocalArtifactPath } from "@repobench/storage";
+import { calculateCompletionRate, calculatePassRate } from "./run-metrics.js";
 
 type CreateRunBody = {
   readonly agentProfileId: string;
@@ -23,6 +27,8 @@ type RedisConnectionOptions = {
   readonly tls?: Record<string, never>;
 };
 
+type ArtifactKind = "patch" | "stdout" | "stderr";
+
 const ARTIFACTS_ROOT = resolve(
   process.env["ARTIFACTS_DIR"] ?? join(process.cwd(), ".repobench-artifacts"),
 );
@@ -36,6 +42,11 @@ const SECRET_ENV_VAR_NAMES = [
   "REDIS_URL",
   "ARTIFACT_STORE_SECRET_KEY",
 ] as const;
+const ARTIFACT_CONTENT_TYPES: Record<ArtifactKind, string> = {
+  patch: "text/x-diff; charset=utf-8",
+  stdout: "text/plain; charset=utf-8",
+  stderr: "text/plain; charset=utf-8",
+};
 
 function sanitizeText(value: string): string {
   const credentialSanitized = value.replaceAll(
@@ -81,6 +92,35 @@ function sanitizeAttemptForResponse(attempt: RunAttempt): RunAttempt {
   };
 }
 
+function parseArtifactKind(value: string): ArtifactKind | null {
+  if (value === "patch" || value === "stdout" || value === "stderr") {
+    return value;
+  }
+
+  return null;
+}
+
+function getAttemptArtifactKey(attempt: RunAttempt, artifactKind: ArtifactKind): string | null {
+  if (artifactKind === "patch") {
+    return attempt.patchArtifactPath;
+  }
+
+  if (artifactKind === "stdout") {
+    return attempt.stdoutLogPath;
+  }
+
+  return attempt.stderrLogPath;
+}
+
+function resolveStoredArtifactPath(artifactReference: string): string {
+  if (!isAbsolute(artifactReference)) {
+    return resolveLocalArtifactPath(ARTIFACTS_ROOT, artifactReference);
+  }
+
+  // Legacy runs persisted host filesystem paths before artifact keys were introduced.
+  return artifactReference;
+}
+
 function getRequiredRedisUrl(): string {
   const redisUrl = process.env["REDIS_URL"];
   if (redisUrl === undefined || redisUrl.trim().length === 0) {
@@ -88,6 +128,10 @@ function getRequiredRedisUrl(): string {
   }
 
   return redisUrl;
+}
+
+function isHostedExecutionAllowed(): boolean {
+  return process.env["ALLOW_HOSTED_AGENT_EXECUTION"] === "true";
 }
 
 function createRedisConnectionOptions(redisConnectionString: string): RedisConnectionOptions {
@@ -193,6 +237,23 @@ export function registerRunRoutes(server: FastifyInstance): void {
         return reply.code(404).send({ error: "Agent profile not found" });
       }
 
+      if (isHostedAgentProfile(agent) && !isHostedExecutionAllowed()) {
+        return reply.code(403).send({
+          error:
+            "Hosted agent execution is disabled. Set ALLOW_HOSTED_AGENT_EXECUTION=true to allow provider API calls.",
+        });
+      }
+
+      const requiredCredentialEnvVar = getRequiredCredentialEnvVar(agent);
+      if (requiredCredentialEnvVar !== null) {
+        const credentialValue = process.env[requiredCredentialEnvVar];
+        if (credentialValue === undefined || credentialValue.trim().length === 0) {
+          return reply.code(503).send({
+            error: `Missing required credential environment variable: ${requiredCredentialEnvVar}`,
+          });
+        }
+      }
+
       const run: Run = {
         id: randomUUID(),
         suiteId,
@@ -216,7 +277,14 @@ export function registerRunRoutes(server: FastifyInstance): void {
             suiteId,
             agentProfileId,
           },
-          { jobId: created.id },
+          {
+            jobId: created.id,
+            attempts: 3,
+            backoff: {
+              type: "exponential",
+              delay: 1_000,
+            },
+          },
         );
       } catch (error: unknown) {
         // If queuing fails, mark the run as failed so it is not permanently stuck
@@ -272,10 +340,48 @@ export function registerRunRoutes(server: FastifyInstance): void {
         completedTasks: run.completedTasks,
         passedTasks: run.passedTasks,
         failedTasks: run.failedTasks,
-        passRate: run.completedTasks > 0 ? run.passedTasks / run.completedTasks : 0,
+        completionRate: calculateCompletionRate(run),
+        passRate: calculatePassRate(run),
       },
       attempts: attempts.map((attempt) => sanitizeAttemptForResponse(attempt)),
       verdicts,
     };
+  });
+
+  server.get<{
+    Params: { id: string; attemptId: string; artifactKind: string };
+  }>("/api/runs/:id/attempts/:attemptId/artifacts/:artifactKind", async (request, reply) => {
+    const run = await server.runs.findById(request.params.id);
+    if (run === null) {
+      return reply.code(404).send({ error: "Run not found" });
+    }
+
+    const artifactKind = parseArtifactKind(request.params.artifactKind);
+    if (artifactKind === null) {
+      return reply.code(400).send({ error: "artifactKind must be one of: patch, stdout, stderr" });
+    }
+
+    const attempts = await server.runAttempts.findByRun(run.id);
+    const attempt = attempts.find((candidate) => candidate.id === request.params.attemptId);
+    if (attempt === undefined) {
+      return reply.code(404).send({ error: "Run attempt not found" });
+    }
+
+    const artifactKey = getAttemptArtifactKey(attempt, artifactKind);
+    if (artifactKey === null) {
+      return reply.code(404).send({ error: "Artifact not found" });
+    }
+
+    try {
+      const artifactPath = resolveStoredArtifactPath(artifactKey);
+      const artifactContent = await readFile(artifactPath, "utf8");
+      return reply.type(ARTIFACT_CONTENT_TYPES[artifactKind]).send(artifactContent);
+    } catch (error: unknown) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+        return reply.code(404).send({ error: "Artifact not found" });
+      }
+
+      throw error;
+    }
   });
 }

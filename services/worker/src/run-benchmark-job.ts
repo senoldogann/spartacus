@@ -1,13 +1,16 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, writeFile } from "node:fs/promises";
-import type { AgentProvider, EvaluationVerdict, RunAttempt } from "@repobench/domain";
-import { applyPatch, runTests, scoreRun } from "@repobench/evaluator";
-import { createClaudeAdapter, createCodexAdapter } from "@repobench/agents";
+import type { EvaluationVerdict, RunAttempt } from "@repobench/domain";
+import { evaluatePatchInSandbox, scoreRun } from "@repobench/evaluator";
+import {
+  createAgentAdapterForProfile,
+  getRequiredCredentialEnvVar,
+  isHostedAgentProfile,
+} from "@repobench/agents";
 import type { AgentAdapter } from "@repobench/agents";
 import {
   buildArtifactKey,
@@ -18,6 +21,7 @@ import {
   createTaskStore,
   createAgentProfileStore,
   createRepositoryStore,
+  resolveLocalArtifactPath,
 } from "@repobench/storage";
 
 const execFileAsync = promisify(execFile);
@@ -30,17 +34,6 @@ export type BenchmarkJobInput = {
   readonly suiteId: string;
   readonly agentProfileId: string;
 };
-
-function getAgentAdapter(provider: AgentProvider): AgentAdapter {
-  switch (provider) {
-    case "claude":
-      return createClaudeAdapter();
-    case "codex":
-      return createCodexAdapter();
-    case "open-source":
-      throw new Error("open-source adapter not yet implemented");
-  }
-}
 
 const TASK_TIMEOUT_MS = 120_000;
 const SANDBOX_IMAGE = process.env["SANDBOX_DOCKER_IMAGE"] ?? "repobench/sandbox:latest";
@@ -81,19 +74,8 @@ function createCloneUrl(cloneUrl: string): string {
   }
 }
 
-function resolveArtifactPath(artifactKey: string): string {
-  const artifactPath = resolve(ARTIFACTS_ROOT, artifactKey);
-  const relativePath = relative(ARTIFACTS_ROOT, artifactPath);
-
-  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
-    throw new Error(`Artifact path escaped artifact root: key=${artifactKey}`);
-  }
-
-  return artifactPath;
-}
-
 async function persistArtifact(artifactKey: string, content: string): Promise<string> {
-  const artifactPath = resolveArtifactPath(artifactKey);
+  const artifactPath = resolveLocalArtifactPath(ARTIFACTS_ROOT, artifactKey);
   await mkdir(dirname(artifactPath), { recursive: true });
   await writeFile(artifactPath, content, "utf8");
   return artifactKey;
@@ -122,6 +104,10 @@ async function persistAttemptArtifacts(
 
 function buildFailureMessage(prefix: string, details: string): string {
   return sanitizeText(`${prefix}: ${details}`.trim());
+}
+
+function isHostedExecutionAllowed(): boolean {
+  return process.env["ALLOW_HOSTED_AGENT_EXECUTION"] === "true";
 }
 
 function redactCredentialedUrls(value: string): string {
@@ -264,6 +250,22 @@ export async function runBenchmarkJob(
       throw new Error(`Agent profile not found: ${run.agentProfileId}`);
     }
 
+    if (isHostedAgentProfile(agentProfile) && !isHostedExecutionAllowed()) {
+      throw new Error(
+        "Hosted agent execution is disabled. Set ALLOW_HOSTED_AGENT_EXECUTION=true to allow provider API calls.",
+      );
+    }
+
+    const requiredCredentialEnvVar = getRequiredCredentialEnvVar(agentProfile);
+    if (requiredCredentialEnvVar !== null) {
+      const credentialValue = process.env[requiredCredentialEnvVar];
+      if (credentialValue === undefined || credentialValue.trim().length === 0) {
+        throw new Error(
+          `Missing required credential environment variable: ${requiredCredentialEnvVar}`,
+        );
+      }
+    }
+
     const tasks = await taskStore.findBySuite(run.suiteId);
     const [existingAttempts, existingVerdicts] = await Promise.all([
       runAttemptStore.findByRun(run.id),
@@ -288,7 +290,7 @@ export async function runBenchmarkJob(
       failedTasks,
     });
 
-    const adapter = getAgentAdapter(agentProfile.provider);
+    const adapter: AgentAdapter = createAgentAdapterForProfile(agentProfile);
 
     // Look up the repository for clone URL
     const firstTask = tasks[0];
@@ -374,18 +376,17 @@ export async function runBenchmarkJob(
         stdoutLogPath = persistedArtifacts.stdoutLogPath;
         stderrLogPath = persistedArtifacts.stderrLogPath;
 
-        // Apply the patch to the workspace
-        const patchResult = await applyPatch(workspacePath, agentResult.patchContent);
+        const patchResult = await evaluatePatchInSandbox(
+          workspacePath,
+          agentResult.patchContent,
+          task.snapshot.testCommand,
+          SANDBOX_IMAGE,
+          TASK_TIMEOUT_MS,
+        );
         durationMs = Date.now() - attemptStartedAt.getTime();
 
-        if (patchResult.success) {
-          // Run test suite inside Docker sandbox
-          const testResult = await runTests(
-            workspacePath,
-            task.snapshot.testCommand,
-            SANDBOX_IMAGE,
-            TASK_TIMEOUT_MS,
-          );
+        if (patchResult.patchApplied && patchResult.testResult !== null) {
+          const testResult = patchResult.testResult;
           durationMs = Date.now() - attemptStartedAt.getTime();
 
           if (!testResult.success) {
@@ -402,7 +403,7 @@ export async function runBenchmarkJob(
             attemptId,
             taskId: task.id,
             runId: run.id,
-            patchApplied: patchResult.success,
+            patchApplied: patchResult.patchApplied,
             // The current snapshot contract exposes a single sandbox command,
             // so build success is derived conservatively from that observable outcome.
             buildPassed: testResult.success,
@@ -424,7 +425,10 @@ export async function runBenchmarkJob(
           );
         } else {
           durationMs = Date.now() - attemptStartedAt.getTime();
-          attemptErrorMessage = buildFailureMessage("Patch failed to apply", patchResult.output);
+          attemptErrorMessage = buildFailureMessage(
+            "Patch failed to apply",
+            patchResult.patchOutput,
+          );
 
           const verdict = scoreRun({
             attemptId,

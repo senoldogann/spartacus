@@ -2,14 +2,14 @@
 
 ## Data Classification
 
-| Data Type                  | Classification | Handling                                  |
-| -------------------------- | -------------- | ----------------------------------------- |
-| Source code (cloned repos) | Confidential   | Ephemeral only, never persisted           |
-| PR diffs                   | Internal       | Stored in task snapshots (Postgres JSONB) |
-| Agent output patches       | Internal       | Stored in artifact store                  |
-| Stdout/stderr logs         | Internal       | Scrubbed then stored                      |
-| GitHub tokens              | Secret         | Environment variables only, never logged  |
-| Agent API keys             | Secret         | Environment variables only, never logged  |
+| Data Type                  | Classification | Handling                                                                                               |
+| -------------------------- | -------------- | ------------------------------------------------------------------------------------------------------ |
+| Source code (cloned repos) | Confidential   | Ephemeral on disk; selected task context may be sent to hosted model APIs only when explicitly enabled |
+| PR diffs                   | Internal       | Stored in task snapshots (Postgres JSONB)                                                              |
+| Agent output patches       | Internal       | Stored in artifact store                                                                               |
+| Stdout/stderr logs         | Internal       | Scrubbed then stored                                                                                   |
+| GitHub tokens              | Secret         | Environment variables only, never logged                                                               |
+| Agent API keys             | Secret         | Environment variables only, never logged                                                               |
 
 ## Log Masking
 

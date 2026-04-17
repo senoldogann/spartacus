@@ -44,9 +44,15 @@ importers:
 
   apps/api:
     dependencies:
+      '@repobench/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@repobench/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@repobench/evaluator':
+        specifier: workspace:*
+        version: link:../../packages/evaluator
       '@repobench/repo-ingest':
         specifier: workspace:^
         version: link:../../packages/repo-ingest
@@ -134,6 +140,9 @@ importers:
 
   packages/storage:
     dependencies:
+      '@repobench/agents':
+        specifier: workspace:*
+        version: link:../agents
       '@repobench/domain':
         specifier: workspace:*
         version: link:../domain

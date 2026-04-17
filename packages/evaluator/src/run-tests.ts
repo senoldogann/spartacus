@@ -19,6 +19,10 @@ function tokenizeTestCommand(testCommand: string): ReadonlyArray<string> {
   return normalizedCommand.split(/\s+/u);
 }
 
+export function validateTestCommand(testCommand: string): void {
+  tokenizeTestCommand(testCommand);
+}
+
 /**
  * Result of running the project's test suite.
  */

@@ -16,22 +16,22 @@ Rules:
 const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 
 function resolveMaxOutputTokens(agentProfile: AgentProfile): number {
-    const configuredValue = agentProfile.config["maxOutputTokens"];
+  const configuredValue = agentProfile.config["maxOutputTokens"];
 
-    if (
-        typeof configuredValue !== "number" ||
-        !Number.isInteger(configuredValue) ||
-        configuredValue <= 0
-    ) {
-        return DEFAULT_MAX_OUTPUT_TOKENS;
-    }
+  if (
+    typeof configuredValue !== "number" ||
+    !Number.isInteger(configuredValue) ||
+    configuredValue <= 0
+  ) {
+    return DEFAULT_MAX_OUTPUT_TOKENS;
+  }
 
-    return configuredValue;
+  return configuredValue;
 }
 
 // Cost estimate based on Claude Sonnet 4 pricing: $3/1M input, $15/1M output
 function estimateCost(inputTokens: number, outputTokens: number): number {
-    return (inputTokens * 3 + outputTokens * 15) / 1_000_000;
+  return (inputTokens * 3 + outputTokens * 15) / 1_000_000;
 }
 
 /**
@@ -39,49 +39,49 @@ function estimateCost(inputTokens: number, outputTokens: number): number {
  * Invokes Anthropic Claude API to solve a benchmark task.
  */
 export function createClaudeAdapter(): AgentAdapter {
-    return {
-        provider: "claude",
-        solve: async ({ task, workspacePath, timeoutMs, agentProfile }): Promise<AgentResult> => {
-            const apiKeyEnvVar = agentProfile.runtimeConfig.apiKeyEnvVar ?? "ANTHROPIC_API_KEY";
-            const apiKey = process.env[apiKeyEnvVar];
-            if (apiKey === undefined || apiKey.trim().length === 0) {
-                throw new Error(`${apiKeyEnvVar} environment variable is required`);
-            }
+  return {
+    provider: "claude",
+    solve: async ({ task, workspacePath, timeoutMs, agentProfile }): Promise<AgentResult> => {
+      const apiKeyEnvVar = agentProfile.runtimeConfig.apiKeyEnvVar ?? "ANTHROPIC_API_KEY";
+      const apiKey = process.env[apiKeyEnvVar];
+      if (apiKey === undefined || apiKey.trim().length === 0) {
+        throw new Error(`${apiKeyEnvVar} environment variable is required`);
+      }
 
-            const client = new Anthropic({ apiKey, maxRetries: 2 });
-            const start = Date.now();
-            const userPrompt = await buildHostedAgentPrompt(task, workspacePath, agentProfile);
+      const client = new Anthropic({ apiKey, maxRetries: 2 });
+      const start = Date.now();
+      const userPrompt = await buildHostedAgentPrompt(task, workspacePath, agentProfile);
 
-            const response = await client.messages.create(
-                {
-                    model: agentProfile.model,
-                    max_tokens: resolveMaxOutputTokens(agentProfile),
-                    system: SYSTEM_PROMPT,
-                    messages: [{ role: "user", content: userPrompt }],
-                },
-                {
-                    maxRetries: 2,
-                    timeout: timeoutMs,
-                    signal: AbortSignal.timeout(timeoutMs),
-                },
-            );
-
-            const durationMs = Date.now() - start;
-
-            const textBlock = response.content.find((b) => b.type === "text");
-            const patchContent = normalizePatchContent(textBlock !== undefined ? textBlock.text : "");
-
-            const inputTokens = response.usage.input_tokens;
-            const outputTokens = response.usage.output_tokens;
-
-            return {
-                patchContent,
-                stdout: `model=${response.model} stop_reason=${response.stop_reason}`,
-                stderr: "",
-                tokenCount: inputTokens + outputTokens,
-                estimatedCostUsd: estimateCost(inputTokens, outputTokens),
-                durationMs,
-            };
+      const response = await client.messages.create(
+        {
+          model: agentProfile.model,
+          max_tokens: resolveMaxOutputTokens(agentProfile),
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: userPrompt }],
         },
-    };
+        {
+          maxRetries: 2,
+          timeout: timeoutMs,
+          signal: AbortSignal.timeout(timeoutMs),
+        },
+      );
+
+      const durationMs = Date.now() - start;
+
+      const textBlock = response.content.find((b) => b.type === "text");
+      const patchContent = normalizePatchContent(textBlock !== undefined ? textBlock.text : "");
+
+      const inputTokens = response.usage.input_tokens;
+      const outputTokens = response.usage.output_tokens;
+
+      return {
+        patchContent,
+        stdout: `model=${response.model} stop_reason=${response.stop_reason}`,
+        stderr: "",
+        tokenCount: inputTokens + outputTokens,
+        estimatedCostUsd: estimateCost(inputTokens, outputTokens),
+        durationMs,
+      };
+    },
+  };
 }

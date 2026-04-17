@@ -14,7 +14,10 @@ const DEFAULT_PAGE_LIMIT = 50;
 function parsePagination(query: Record<string, unknown>): PaginationParams {
   const rawLimit = query["limit"];
   const rawOffset = query["offset"];
-  const limit = typeof rawLimit === "string" ? Math.min(parseInt(rawLimit, 10) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT) : DEFAULT_PAGE_LIMIT;
+  const limit =
+    typeof rawLimit === "string"
+      ? Math.min(parseInt(rawLimit, 10) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT)
+      : DEFAULT_PAGE_LIMIT;
   const offset = typeof rawOffset === "string" ? Math.max(parseInt(rawOffset, 10) || 0, 0) : 0;
   return { limit, offset };
 }
@@ -94,8 +97,16 @@ const createAgentProfileSchema = {
 };
 
 const SENSITIVE_CONFIG_KEYS = new Set([
-  "apiKey", "api_key", "secretKey", "secret_key", "token", "password",
-  "secret", "credentials", "accessKey", "access_key",
+  "apiKey",
+  "api_key",
+  "secretKey",
+  "secret_key",
+  "token",
+  "password",
+  "secret",
+  "credentials",
+  "accessKey",
+  "access_key",
 ]);
 
 function sanitizeAgentProfileConfig(config: Record<string, unknown>): Record<string, unknown> {
@@ -110,7 +121,9 @@ function sanitizeAgentProfileConfig(config: Record<string, unknown>): Record<str
   return sanitized;
 }
 
-function sanitizeAgentProfile(profile: AgentProfile): Omit<AgentProfile, "config"> & { config: Record<string, unknown> } {
+function sanitizeAgentProfile(
+  profile: AgentProfile,
+): Omit<AgentProfile, "config"> & { config: Record<string, unknown> } {
   return {
     ...profile,
     config: sanitizeAgentProfileConfig(profile.config),
@@ -136,51 +149,55 @@ export function registerAgentProfileRoutes(server: FastifyInstance): void {
     return { agentProfile: sanitizeAgentProfile(agentProfile) };
   });
 
-  server.post<{ Body: CreateAgentProfileBody }>("/api/agent-profiles", { schema: createAgentProfileSchema }, async (request, reply) => {
-    const body = parseCreateAgentProfileBody(request.body);
-    if (body === null) {
-      return reply
-        .code(400)
-        .send({ error: "name, provider, and model are required; config must be an object" });
-    }
+  server.post<{ Body: CreateAgentProfileBody }>(
+    "/api/agent-profiles",
+    { schema: createAgentProfileSchema },
+    async (request, reply) => {
+      const body = parseCreateAgentProfileBody(request.body);
+      if (body === null) {
+        return reply
+          .code(400)
+          .send({ error: "name, provider, and model are required; config must be an object" });
+      }
 
-    if (body.name.trim().length === 0 || body.model.trim().length === 0) {
-      return reply.code(400).send({ error: "name and model must not be empty" });
-    }
+      if (body.name.trim().length === 0 || body.model.trim().length === 0) {
+        return reply.code(400).send({ error: "name and model must not be empty" });
+      }
 
-    const executionMode = body.executionMode ?? getDefaultExecutionModeForProvider(body.provider);
-    let runtimeConfig: AgentProfile["runtimeConfig"];
+      const executionMode = body.executionMode ?? getDefaultExecutionModeForProvider(body.provider);
+      let runtimeConfig: AgentProfile["runtimeConfig"];
 
-    try {
-      runtimeConfig = resolveRequestedAgentRuntimeConfig(
-        body.provider,
+      try {
+        runtimeConfig = resolveRequestedAgentRuntimeConfig(
+          body.provider,
+          executionMode,
+          body.runtimeConfig,
+        );
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return reply.code(400).send({ error: message });
+      }
+
+      const agentProfile: AgentProfile = {
+        id: randomUUID(),
+        name: body.name,
+        provider: body.provider,
+        model: body.model,
         executionMode,
-        body.runtimeConfig,
-      );
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.code(400).send({ error: message });
-    }
+        runtimeConfig,
+        config: body.config ?? {},
+        createdAt: new Date(),
+      };
 
-    const agentProfile: AgentProfile = {
-      id: randomUUID(),
-      name: body.name,
-      provider: body.provider,
-      model: body.model,
-      executionMode,
-      runtimeConfig,
-      config: body.config ?? {},
-      createdAt: new Date(),
-    };
+      try {
+        assertSupportedAgentProfile(agentProfile);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return reply.code(400).send({ error: message });
+      }
 
-    try {
-      assertSupportedAgentProfile(agentProfile);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.code(400).send({ error: message });
-    }
-
-    const created = await server.agentProfiles.create(agentProfile);
-    return reply.code(201).send({ agentProfile: created });
-  });
+      const created = await server.agentProfiles.create(agentProfile);
+      return reply.code(201).send({ agentProfile: created });
+    },
+  );
 }

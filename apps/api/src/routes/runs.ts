@@ -13,357 +13,360 @@ const MAX_PAGE_LIMIT = 100;
 const DEFAULT_PAGE_LIMIT = 50;
 
 function parsePagination(query: Record<string, unknown>): PaginationParams {
-    const rawLimit = query["limit"];
-    const rawOffset = query["offset"];
-    const limit = typeof rawLimit === "string" ? Math.min(parseInt(rawLimit, 10) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT) : DEFAULT_PAGE_LIMIT;
-    const offset = typeof rawOffset === "string" ? Math.max(parseInt(rawOffset, 10) || 0, 0) : 0;
-    return { limit, offset };
+  const rawLimit = query["limit"];
+  const rawOffset = query["offset"];
+  const limit =
+    typeof rawLimit === "string"
+      ? Math.min(parseInt(rawLimit, 10) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT)
+      : DEFAULT_PAGE_LIMIT;
+  const offset = typeof rawOffset === "string" ? Math.max(parseInt(rawOffset, 10) || 0, 0) : 0;
+  return { limit, offset };
 }
 
 type CreateRunBody = {
-    readonly agentProfileId: string;
+  readonly agentProfileId: string;
 };
 
 type BenchmarkRunJob = {
-    readonly runId: string;
-    readonly suiteId: string;
-    readonly agentProfileId: string;
+  readonly runId: string;
+  readonly suiteId: string;
+  readonly agentProfileId: string;
 };
 
 type ArtifactKind = "patch" | "stdout" | "stderr";
 
 const ARTIFACTS_ROOT = resolve(
-    process.env["ARTIFACTS_DIR"] ?? join(process.cwd(), ".repobench-artifacts"),
+  process.env["ARTIFACTS_DIR"] ?? join(process.cwd(), ".repobench-artifacts"),
 );
 const REDACTED_VALUE = "[REDACTED]";
 const SECRET_ENV_VAR_NAMES = [
-    "GITHUB_TOKEN",
-    "ANTHROPIC_API_KEY",
-    "OPENAI_API_KEY",
-    "OPEN_SOURCE_API_KEY",
-    "API_AUTH_TOKEN",
-    "DATABASE_URL",
-    "REDIS_URL",
-    "ARTIFACT_STORE_SECRET_KEY",
+  "GITHUB_TOKEN",
+  "ANTHROPIC_API_KEY",
+  "OPENAI_API_KEY",
+  "OPEN_SOURCE_API_KEY",
+  "API_AUTH_TOKEN",
+  "DATABASE_URL",
+  "REDIS_URL",
+  "ARTIFACT_STORE_SECRET_KEY",
 ] as const;
 const ARTIFACT_CONTENT_TYPES: Record<ArtifactKind, string> = {
-    patch: "text/x-diff; charset=utf-8",
-    stdout: "text/plain; charset=utf-8",
-    stderr: "text/plain; charset=utf-8",
+  patch: "text/x-diff; charset=utf-8",
+  stdout: "text/plain; charset=utf-8",
+  stderr: "text/plain; charset=utf-8",
 };
 
 function sanitizeText(value: string): string {
-    const credentialSanitized = value.replaceAll(
-        /https:\/\/([^/\s:@]+):([^@\s]+)@/gu,
-        `https://$1:${REDACTED_VALUE}@`,
-    );
+  const credentialSanitized = value.replaceAll(
+    /https:\/\/([^/\s:@]+):([^@\s]+)@/gu,
+    `https://$1:${REDACTED_VALUE}@`,
+  );
 
-    return SECRET_ENV_VAR_NAMES.reduce((currentValue, envVarName) => {
-        const secretValue = process.env[envVarName];
+  return SECRET_ENV_VAR_NAMES.reduce((currentValue, envVarName) => {
+    const secretValue = process.env[envVarName];
 
-        if (secretValue === undefined || secretValue.length === 0) {
-            return currentValue;
-        }
+    if (secretValue === undefined || secretValue.length === 0) {
+      return currentValue;
+    }
 
-        return currentValue.split(secretValue).join(REDACTED_VALUE);
-    }, credentialSanitized);
+    return currentValue.split(secretValue).join(REDACTED_VALUE);
+  }, credentialSanitized);
 }
 
 function sanitizeArtifactReference(reference: string | null): string | null {
-    if (reference === null) {
-        return null;
-    }
+  if (reference === null) {
+    return null;
+  }
 
-    if (!isAbsolute(reference)) {
-        return reference;
-    }
+  if (!isAbsolute(reference)) {
+    return reference;
+  }
 
-    const relativePath = relative(ARTIFACTS_ROOT, reference);
-    if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
-        return basename(reference);
-    }
+  const relativePath = relative(ARTIFACTS_ROOT, reference);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    return basename(reference);
+  }
 
-    return relativePath;
+  return relativePath;
 }
 
 function sanitizeAttemptForResponse(attempt: RunAttempt): RunAttempt {
-    return {
-        ...attempt,
-        patchArtifactPath: sanitizeArtifactReference(attempt.patchArtifactPath),
-        stdoutLogPath: sanitizeArtifactReference(attempt.stdoutLogPath),
-        stderrLogPath: sanitizeArtifactReference(attempt.stderrLogPath),
-        errorMessage: attempt.errorMessage !== null ? sanitizeText(attempt.errorMessage) : null,
-    };
+  return {
+    ...attempt,
+    patchArtifactPath: sanitizeArtifactReference(attempt.patchArtifactPath),
+    stdoutLogPath: sanitizeArtifactReference(attempt.stdoutLogPath),
+    stderrLogPath: sanitizeArtifactReference(attempt.stderrLogPath),
+    errorMessage: attempt.errorMessage !== null ? sanitizeText(attempt.errorMessage) : null,
+  };
 }
 
 function parseArtifactKind(value: string): ArtifactKind | null {
-    if (value === "patch" || value === "stdout" || value === "stderr") {
-        return value;
-    }
+  if (value === "patch" || value === "stdout" || value === "stderr") {
+    return value;
+  }
 
-    return null;
+  return null;
 }
 
 function getAttemptArtifactKey(attempt: RunAttempt, artifactKind: ArtifactKind): string | null {
-    if (artifactKind === "patch") {
-        return attempt.patchArtifactPath;
-    }
+  if (artifactKind === "patch") {
+    return attempt.patchArtifactPath;
+  }
 
-    if (artifactKind === "stdout") {
-        return attempt.stdoutLogPath;
-    }
+  if (artifactKind === "stdout") {
+    return attempt.stdoutLogPath;
+  }
 
-    return attempt.stderrLogPath;
+  return attempt.stderrLogPath;
 }
 
 function resolveStoredArtifactPath(artifactReference: string): string {
-    if (!isAbsolute(artifactReference)) {
-        return resolveLocalArtifactPath(ARTIFACTS_ROOT, artifactReference);
-    }
+  if (!isAbsolute(artifactReference)) {
+    return resolveLocalArtifactPath(ARTIFACTS_ROOT, artifactReference);
+  }
 
-    const relativePath = relative(ARTIFACTS_ROOT, artifactReference);
-    if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
-        const error = new Error("Legacy artifact path is outside ARTIFACTS_DIR");
-        Object.assign(error, { code: "ENOENT" });
-        throw error;
-    }
+  const relativePath = relative(ARTIFACTS_ROOT, artifactReference);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    const error = new Error("Legacy artifact path is outside ARTIFACTS_DIR");
+    Object.assign(error, { code: "ENOENT" });
+    throw error;
+  }
 
-    return resolveLocalArtifactPath(ARTIFACTS_ROOT, relativePath);
+  return resolveLocalArtifactPath(ARTIFACTS_ROOT, relativePath);
 }
 
 function getRequiredRedisUrl(): string {
-    const redisUrl = process.env["REDIS_URL"];
-    if (redisUrl === undefined || redisUrl.trim().length === 0) {
-        throw new Error("REDIS_URL environment variable is required");
-    }
+  const redisUrl = process.env["REDIS_URL"];
+  if (redisUrl === undefined || redisUrl.trim().length === 0) {
+    throw new Error("REDIS_URL environment variable is required");
+  }
 
-    return redisUrl;
+  return redisUrl;
 }
 
 function isHostedExecutionAllowed(): boolean {
-    return process.env["ALLOW_HOSTED_AGENT_EXECUTION"] === "true";
+  return process.env["ALLOW_HOSTED_AGENT_EXECUTION"] === "true";
 }
 
 function parseCreateRunBody(body: unknown): CreateRunBody | null {
-    if (typeof body !== "object" || body === null) {
-        return null;
-    }
+  if (typeof body !== "object" || body === null) {
+    return null;
+  }
 
-    const candidate = body as Record<string, unknown>;
-    const agentProfileId = candidate["agentProfileId"];
+  const candidate = body as Record<string, unknown>;
+  const agentProfileId = candidate["agentProfileId"];
 
-    if (typeof agentProfileId !== "string") {
-        return null;
-    }
+  if (typeof agentProfileId !== "string") {
+    return null;
+  }
 
-    return { agentProfileId };
+  return { agentProfileId };
 }
 
 const createRunSchema = {
-    body: {
-        type: "object" as const,
-        required: ["agentProfileId"],
-        properties: {
-            agentProfileId: { type: "string" as const, minLength: 1 },
-        },
-        additionalProperties: false,
+  body: {
+    type: "object" as const,
+    required: ["agentProfileId"],
+    properties: {
+      agentProfileId: { type: "string" as const, minLength: 1 },
     },
+    additionalProperties: false,
+  },
 };
 
 /**
  * Benchmark run management endpoints.
  */
 export function registerRunRoutes(server: FastifyInstance): void {
-    const queue = new Queue<BenchmarkRunJob>("benchmark-run", {
-        connection: createRedisConnectionOptions(getRequiredRedisUrl()),
-    });
+  const queue = new Queue<BenchmarkRunJob>("benchmark-run", {
+    connection: createRedisConnectionOptions(getRequiredRedisUrl()),
+  });
 
-    server.addHook("onClose", async () => {
-        await queue.close();
-    });
+  server.addHook("onClose", async () => {
+    await queue.close();
+  });
 
-    server.post<{ Params: { suiteId: string }; Body: CreateRunBody }>(
-        "/api/suites/:suiteId/runs",
-        { schema: createRunSchema },
-        async (request, reply) => {
-            const { suiteId } = request.params;
-            const body = parseCreateRunBody(request.body);
+  server.post<{ Params: { suiteId: string }; Body: CreateRunBody }>(
+    "/api/suites/:suiteId/runs",
+    { schema: createRunSchema },
+    async (request, reply) => {
+      const { suiteId } = request.params;
+      const body = parseCreateRunBody(request.body);
 
-            if (body === null) {
-                return reply.code(400).send({ error: "agentProfileId is required" });
-            }
+      if (body === null) {
+        return reply.code(400).send({ error: "agentProfileId is required" });
+      }
 
-            const { agentProfileId } = body;
+      const { agentProfileId } = body;
 
-            if (typeof agentProfileId !== "string" || agentProfileId.trim().length === 0) {
-                return reply.code(400).send({ error: "agentProfileId is required" });
-            }
+      if (typeof agentProfileId !== "string" || agentProfileId.trim().length === 0) {
+        return reply.code(400).send({ error: "agentProfileId is required" });
+      }
 
-            const suite = await server.suites.findById(suiteId);
-            if (suite === null) {
-                return reply.code(404).send({ error: "Suite not found" });
-            }
+      const suite = await server.suites.findById(suiteId);
+      if (suite === null) {
+        return reply.code(404).send({ error: "Suite not found" });
+      }
 
-            const agent = await server.agentProfiles.findById(agentProfileId);
-            if (agent === null) {
-                return reply.code(404).send({ error: "Agent profile not found" });
-            }
+      const agent = await server.agentProfiles.findById(agentProfileId);
+      if (agent === null) {
+        return reply.code(404).send({ error: "Agent profile not found" });
+      }
 
-            if (isHostedAgentProfile(agent) && !isHostedExecutionAllowed()) {
-                return reply.code(403).send({
-                    error:
-                        "Hosted agent execution is disabled. Set ALLOW_HOSTED_AGENT_EXECUTION=true to allow provider API calls.",
-                });
-            }
+      if (isHostedAgentProfile(agent) && !isHostedExecutionAllowed()) {
+        return reply.code(403).send({
+          error:
+            "Hosted agent execution is disabled. Set ALLOW_HOSTED_AGENT_EXECUTION=true to allow provider API calls.",
+        });
+      }
 
-            let requiredCredentialEnvVar: string | null;
-            try {
-                requiredCredentialEnvVar = getRequiredCredentialEnvVar(agent);
-            } catch (error: unknown) {
-                const message = error instanceof Error ? error.message : String(error);
-                return reply.code(400).send({ error: `Agent profile is not runnable: ${message}` });
-            }
+      let requiredCredentialEnvVar: string | null;
+      try {
+        requiredCredentialEnvVar = getRequiredCredentialEnvVar(agent);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return reply.code(400).send({ error: `Agent profile is not runnable: ${message}` });
+      }
 
-            if (requiredCredentialEnvVar !== null) {
-                const credentialValue = process.env[requiredCredentialEnvVar];
-                if (credentialValue === undefined || credentialValue.trim().length === 0) {
-                    return reply.code(503).send({
-                        error: `Missing required credential environment variable: ${requiredCredentialEnvVar}`,
-                    });
-                }
-            }
-
-            const run: Run = {
-                id: randomUUID(),
-                suiteId,
-                agentProfileId,
-                status: "queued",
-                totalTasks: suite.taskCount,
-                completedTasks: 0,
-                passedTasks: 0,
-                failedTasks: 0,
-                startedAt: null,
-                completedAt: null,
-                createdAt: new Date(),
-            };
-
-            const created = await server.runs.create(run);
-            try {
-                await queue.add(
-                    created.id,
-                    {
-                        runId: created.id,
-                        suiteId,
-                        agentProfileId,
-                    },
-                    {
-                        jobId: created.id,
-                        attempts: 3,
-                        backoff: {
-                            type: "exponential",
-                            delay: 1_000,
-                        },
-                    },
-                );
-            } catch (error: unknown) {
-                // If queuing fails, mark the run as failed so it is not permanently stuck
-                // in "queued" with no corresponding BullMQ job to process it.
-                try {
-                    await server.runs.updateStatus(created.id, "failed", {
-                        completedTasks: 0,
-                        passedTasks: 0,
-                        failedTasks: 0,
-                    });
-                } catch (updateError: unknown) {
-                    server.log.error(
-                        { runId: created.id, updateError },
-                        "Failed to mark run as failed after queue enqueue error; run may be stuck in queued state",
-                    );
-                }
-
-                throw error;
-            }
-
-            return reply.code(201).send({ run: created });
-        },
-    );
-
-    server.get<{ Params: { id: string } }>("/api/runs/:id", async (request, reply) => {
-        const run = await server.runs.findById(request.params.id);
-        if (run === null) {
-            return reply.code(404).send({ error: "Run not found" });
+      if (requiredCredentialEnvVar !== null) {
+        const credentialValue = process.env[requiredCredentialEnvVar];
+        if (credentialValue === undefined || credentialValue.trim().length === 0) {
+          return reply.code(503).send({
+            error: `Missing required credential environment variable: ${requiredCredentialEnvVar}`,
+          });
         }
-        return { run };
-    });
+      }
 
-    server.get<{ Params: { suiteId: string } }>("/api/suites/:suiteId/runs", async (request) => {
-        const pagination = parsePagination(request.query as Record<string, unknown>);
-        const runs = await server.runs.findBySuite(request.params.suiteId, pagination);
-        return { runs };
-    });
+      const run: Run = {
+        id: randomUUID(),
+        suiteId,
+        agentProfileId,
+        status: "queued",
+        totalTasks: suite.taskCount,
+        completedTasks: 0,
+        passedTasks: 0,
+        failedTasks: 0,
+        startedAt: null,
+        completedAt: null,
+        createdAt: new Date(),
+      };
 
-    server.get<{ Params: { id: string } }>("/api/runs/:id/results", async (request, reply) => {
-        const run = await server.runs.findById(request.params.id);
-        if (run === null) {
-            return reply.code(404).send({ error: "Run not found" });
-        }
-
-        const [attempts, verdicts] = await Promise.all([
-            server.runAttempts.findByRun(run.id),
-            server.evaluationVerdicts.findByRun(run.id),
-        ]);
-
-        return {
-            run,
-            summary: {
-                totalTasks: run.totalTasks,
-                completedTasks: run.completedTasks,
-                passedTasks: run.passedTasks,
-                failedTasks: run.failedTasks,
-                completionRate: calculateCompletionRate(run),
-                passRate: calculatePassRate(run),
+      const created = await server.runs.create(run);
+      try {
+        await queue.add(
+          created.id,
+          {
+            runId: created.id,
+            suiteId,
+            agentProfileId,
+          },
+          {
+            jobId: created.id,
+            attempts: 3,
+            backoff: {
+              type: "exponential",
+              delay: 1_000,
             },
-            attempts: attempts.map((attempt) => sanitizeAttemptForResponse(attempt)),
-            verdicts,
-        };
-    });
-
-    server.get<{
-        Params: { id: string; attemptId: string; artifactKind: string };
-    }>("/api/runs/:id/attempts/:attemptId/artifacts/:artifactKind", async (request, reply) => {
-        const run = await server.runs.findById(request.params.id);
-        if (run === null) {
-            return reply.code(404).send({ error: "Run not found" });
-        }
-
-        const artifactKind = parseArtifactKind(request.params.artifactKind);
-        if (artifactKind === null) {
-            return reply.code(400).send({ error: "artifactKind must be one of: patch, stdout, stderr" });
-        }
-
-        const attempts = await server.runAttempts.findByRun(run.id);
-        const attempt = attempts.find((candidate) => candidate.id === request.params.attemptId);
-        if (attempt === undefined) {
-            return reply.code(404).send({ error: "Run attempt not found" });
-        }
-
-        const artifactKey = getAttemptArtifactKey(attempt, artifactKind);
-        if (artifactKey === null) {
-            return reply.code(404).send({ error: "Artifact not found" });
-        }
-
+          },
+        );
+      } catch (error: unknown) {
+        // If queuing fails, mark the run as failed so it is not permanently stuck
+        // in "queued" with no corresponding BullMQ job to process it.
         try {
-            const artifactPath = resolveStoredArtifactPath(artifactKey);
-            const artifactContent = await readFile(artifactPath, "utf8");
-            const responseContent =
-                artifactKind === "patch" ? artifactContent : sanitizeText(artifactContent);
-            return reply.type(ARTIFACT_CONTENT_TYPES[artifactKind]).send(responseContent);
-        } catch (error: unknown) {
-            if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-                return reply.code(404).send({ error: "Artifact not found" });
-            }
-
-            throw error;
+          await server.runs.updateStatus(created.id, "failed", {
+            completedTasks: 0,
+            passedTasks: 0,
+            failedTasks: 0,
+          });
+        } catch (updateError: unknown) {
+          server.log.error(
+            { runId: created.id, updateError },
+            "Failed to mark run as failed after queue enqueue error; run may be stuck in queued state",
+          );
         }
-    });
+
+        throw error;
+      }
+
+      return reply.code(201).send({ run: created });
+    },
+  );
+
+  server.get<{ Params: { id: string } }>("/api/runs/:id", async (request, reply) => {
+    const run = await server.runs.findById(request.params.id);
+    if (run === null) {
+      return reply.code(404).send({ error: "Run not found" });
+    }
+    return { run };
+  });
+
+  server.get<{ Params: { suiteId: string } }>("/api/suites/:suiteId/runs", async (request) => {
+    const pagination = parsePagination(request.query as Record<string, unknown>);
+    const runs = await server.runs.findBySuite(request.params.suiteId, pagination);
+    return { runs };
+  });
+
+  server.get<{ Params: { id: string } }>("/api/runs/:id/results", async (request, reply) => {
+    const run = await server.runs.findById(request.params.id);
+    if (run === null) {
+      return reply.code(404).send({ error: "Run not found" });
+    }
+
+    const [attempts, verdicts] = await Promise.all([
+      server.runAttempts.findByRun(run.id),
+      server.evaluationVerdicts.findByRun(run.id),
+    ]);
+
+    return {
+      run,
+      summary: {
+        totalTasks: run.totalTasks,
+        completedTasks: run.completedTasks,
+        passedTasks: run.passedTasks,
+        failedTasks: run.failedTasks,
+        completionRate: calculateCompletionRate(run),
+        passRate: calculatePassRate(run),
+      },
+      attempts: attempts.map((attempt) => sanitizeAttemptForResponse(attempt)),
+      verdicts,
+    };
+  });
+
+  server.get<{
+    Params: { id: string; attemptId: string; artifactKind: string };
+  }>("/api/runs/:id/attempts/:attemptId/artifacts/:artifactKind", async (request, reply) => {
+    const run = await server.runs.findById(request.params.id);
+    if (run === null) {
+      return reply.code(404).send({ error: "Run not found" });
+    }
+
+    const artifactKind = parseArtifactKind(request.params.artifactKind);
+    if (artifactKind === null) {
+      return reply.code(400).send({ error: "artifactKind must be one of: patch, stdout, stderr" });
+    }
+
+    const attempts = await server.runAttempts.findByRun(run.id);
+    const attempt = attempts.find((candidate) => candidate.id === request.params.attemptId);
+    if (attempt === undefined) {
+      return reply.code(404).send({ error: "Run attempt not found" });
+    }
+
+    const artifactKey = getAttemptArtifactKey(attempt, artifactKind);
+    if (artifactKey === null) {
+      return reply.code(404).send({ error: "Artifact not found" });
+    }
+
+    try {
+      const artifactPath = resolveStoredArtifactPath(artifactKey);
+      const artifactContent = await readFile(artifactPath, "utf8");
+      const responseContent =
+        artifactKind === "patch" ? artifactContent : sanitizeText(artifactContent);
+      return reply.type(ARTIFACT_CONTENT_TYPES[artifactKind]).send(responseContent);
+    } catch (error: unknown) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+        return reply.code(404).send({ error: "Artifact not found" });
+      }
+
+      throw error;
+    }
+  });
 }

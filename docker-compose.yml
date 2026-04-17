@@ -13,7 +13,7 @@ services:
     networks:
       - repobench
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U repobench" ]
+      test: ["CMD-SHELL", "pg_isready -U repobench"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -30,7 +30,7 @@ services:
     networks:
       - repobench
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -52,7 +52,7 @@ services:
     healthcheck:
       # Use the MinIO built-in liveness endpoint instead of the mc binary,
       # which is not shipped in the minio/minio image.
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -80,7 +80,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:3001/health" ]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -133,5 +133,3 @@ volumes:
   pgdata:
   redisdata:
   miniodata:
-
-

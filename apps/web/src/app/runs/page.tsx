@@ -2,6 +2,8 @@ import Link from "next/link";
 import type React from "react";
 import { apiClient } from "../../lib/api-client";
 
+export const dynamic = "force-dynamic";
+
 type Run = {
   readonly id: string;
   readonly status: string;

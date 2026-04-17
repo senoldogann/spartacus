@@ -1,6 +1,10 @@
 import type React from "react";
 import { apiClient } from "../../lib/api-client";
 
+// Prevent Next.js from statically pre-rendering this page at build time.
+// The page must fetch live data from the API on every request.
+export const dynamic = "force-dynamic";
+
 type Repo = {
   readonly id: string;
   readonly owner: string;

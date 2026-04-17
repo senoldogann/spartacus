@@ -1,6 +1,8 @@
 import type React from "react";
 import { apiClient } from "../../../lib/api-client";
 
+export const dynamic = "force-dynamic";
+
 type RunSummary = {
   readonly status: string;
   readonly totalTasks: number;

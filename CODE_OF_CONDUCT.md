@@ -22,9 +22,19 @@ Examples of unacceptable behavior:
 - Publishing others' private information without explicit permission
 - Other conduct which could reasonably be considered inappropriate in a professional setting
 
+## Enforcement Responsibilities
+
+Project maintainers are responsible for clarifying and enforcing our standards for acceptable behavior. They may take any action they deem appropriate and proportionate in response to unacceptable conduct, including warnings, temporary restrictions, or removal from the community.
+
+## Scope
+
+This Code of Conduct applies in all project spaces, including issues, pull requests, discussions, review threads, and any public or private communication made in connection with RepoBench. It also applies when an individual is representing the project or its community in public spaces.
+
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers at conduct@repobench.dev. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported privately to **Senol Dogan** at **contact@senoldogan.dev**.
+
+When making a report, include any relevant links, screenshots, timestamps, or context that can help the maintainers review the incident. Every report will be reviewed promptly and handled as confidentially as practical.
 
 ## Attribution
 

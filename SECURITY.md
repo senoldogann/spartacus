@@ -4,7 +4,8 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.x     | ✅        |
+| 0.1.x   | ✅        |
+| < 0.1.0 | ❌        |
 
 ## Reporting a Vulnerability
 
@@ -12,14 +13,17 @@ If you discover a security vulnerability in RepoBench, please report it responsi
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Instead, email **security@repobench.dev** with:
+Instead, email **contact@senoldogan.dev** with the subject line `RepoBench security report: <short summary>` and include:
 
 1. Description of the vulnerability
 2. Steps to reproduce
 3. Potential impact
 4. Suggested fix (if any)
+5. Any logs, screenshots, or proof-of-concept material needed to reproduce safely
 
-We will acknowledge receipt within 48 hours and provide a timeline for a fix within 5 business days.
+Please share only the minimum data required to reproduce the issue. If the report involves secrets, credentials, or private repository content, mention that explicitly so handling can stay private.
+
+We will acknowledge receipt within 2 business days and provide an initial triage update within 5 business days.
 
 ## Security Model
 
@@ -39,3 +43,10 @@ We follow coordinated disclosure. We will:
 2. Develop and test a fix
 3. Release the fix
 4. Publicly disclose the issue after the fix is available
+
+## Maintainer Contact
+
+RepoBench is maintained by **Senol Dogan**.
+
+- Email: **contact@senoldogan.dev**
+- Website: **https://www.senoldogan.dev**

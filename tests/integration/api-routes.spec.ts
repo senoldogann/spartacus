@@ -267,8 +267,10 @@ function createEvaluationVerdictStore(): EvaluationVerdictStore {
   };
 }
 
-function createAgentProfileStore(): AgentProfileStore {
-  const agentProfiles: AgentProfile[] = [agentProfileFixture];
+function createAgentProfileStore(
+  initialAgentProfiles: ReadonlyArray<AgentProfile>,
+): AgentProfileStore {
+  const agentProfiles: AgentProfile[] = [...initialAgentProfiles];
 
   return {
     findById: async (id: string) => agentProfiles.find((profile) => profile.id === id) ?? null,
@@ -310,6 +312,7 @@ function createReply(): TestReply {
 function createTestServer(
   options: {
     readonly runAttempt?: RunAttempt;
+    readonly agentProfiles?: ReadonlyArray<AgentProfile>;
   } = {},
 ): TestServer {
   const registeredPostRoutes = new Map<string, RouteHandler>();
@@ -317,6 +320,7 @@ function createTestServer(
   const onCloseHooks: Array<() => Promise<void>> = [];
   const createdRuns: Run[] = [];
   const runAttempt = options.runAttempt ?? runAttemptFixture;
+  const agentProfiles = options.agentProfiles ?? [agentProfileFixture];
 
   const server = {
     post(path: string, handler: RouteHandler): void {
@@ -336,7 +340,7 @@ function createTestServer(
     runs: createRunStore(createdRuns),
     runAttempts: createRunAttemptStore(runAttempt),
     evaluationVerdicts: createEvaluationVerdictStore(),
-    agentProfiles: createAgentProfileStore(),
+    agentProfiles: createAgentProfileStore(agentProfiles),
     registeredPostRoutes,
     registeredGetRoutes,
     createdRuns,
@@ -365,6 +369,7 @@ describe("API route validation and queueing", () => {
   let previousAllowHostedAgentExecution: string | undefined;
   let previousAnthropicApiKey: string | undefined;
   let previousOpenAiApiKey: string | undefined;
+  let previousOpenSourceApiKey: string | undefined;
   let queue: Queue | null;
 
   beforeEach(async () => {
@@ -372,10 +377,12 @@ describe("API route validation and queueing", () => {
     previousAllowHostedAgentExecution = process.env["ALLOW_HOSTED_AGENT_EXECUTION"];
     previousAnthropicApiKey = process.env["ANTHROPIC_API_KEY"];
     previousOpenAiApiKey = process.env["OPENAI_API_KEY"];
+    previousOpenSourceApiKey = process.env["OPEN_SOURCE_API_KEY"];
     process.env["REDIS_URL"] = "redis://127.0.0.1:6379/15";
     process.env["ALLOW_HOSTED_AGENT_EXECUTION"] = "true";
     process.env["ANTHROPIC_API_KEY"] = "test-anthropic-key";
     process.env["OPENAI_API_KEY"] = "test-openai-key";
+    process.env["OPEN_SOURCE_API_KEY"] = "test-open-source-key";
     queue = new Queue("benchmark-run", {
       connection: createQueueConnection(process.env["REDIS_URL"]),
     });
@@ -411,6 +418,12 @@ describe("API route validation and queueing", () => {
       delete process.env["OPENAI_API_KEY"];
     } else {
       process.env["OPENAI_API_KEY"] = previousOpenAiApiKey;
+    }
+
+    if (previousOpenSourceApiKey === undefined) {
+      delete process.env["OPEN_SOURCE_API_KEY"];
+    } else {
+      process.env["OPEN_SOURCE_API_KEY"] = previousOpenSourceApiKey;
     }
 
     await rm(join(process.cwd(), ".repobench-artifacts"), { recursive: true, force: true });
@@ -634,6 +647,36 @@ describe("API route validation and queueing", () => {
     expect(response.statusCode).toBe(201);
   });
 
+  it("rejects arbitrary credential env vars in agent profile requests", async () => {
+    const server = createTestServer();
+    registerAgentProfileRoutes(server);
+
+    const createHandler = server.registeredPostRoutes.get("/api/agent-profiles");
+    if (createHandler === undefined) {
+      throw new Error("Expected agent profile create route to be registered");
+    }
+
+    const response = await invokeRoute(createHandler, {
+      body: {
+        name: "Unsafe Codex",
+        provider: "codex",
+        model: "gpt-5.3-codex",
+        executionMode: "hosted",
+        runtimeConfig: {
+          transport: "provider-api",
+          apiKeyEnvVar: "DATABASE_URL",
+        },
+      },
+    });
+
+    expect(response).toEqual({
+      statusCode: 400,
+      body: {
+        error: "runtimeConfig.apiKeyEnvVar must be OPENAI_API_KEY",
+      },
+    });
+  });
+
   it("rejects cross-suite comparisons and reports total-task rates", async () => {
     const server = createTestServer();
     server.createdRuns.push(runResultFixture, comparisonRunFixture, crossSuiteRunFixture);
@@ -790,9 +833,74 @@ describe("API route validation and queueing", () => {
     await server.closeServer();
   });
 
+  it("redacts configured secrets from downloadable log artifacts", async () => {
+    const server = createTestServer();
+    server.createdRuns.push(runResultFixture);
+    registerRunRoutes(server);
+
+    const artifactHandler = server.registeredGetRoutes.get(
+      "/api/runs/:id/attempts/:attemptId/artifacts/:artifactKind",
+    );
+    if (artifactHandler === undefined) {
+      throw new Error("Expected artifact route to be registered");
+    }
+
+    await mkdir(
+      join(
+        process.cwd(),
+        ".repobench-artifacts",
+        "runs",
+        "run-results-1",
+        "tasks",
+        "task-1",
+        "attempts",
+        "attempt-1",
+      ),
+      {
+        recursive: true,
+      },
+    );
+    await writeFile(
+      join(
+        process.cwd(),
+        ".repobench-artifacts",
+        "runs",
+        "run-results-1",
+        "tasks",
+        "task-1",
+        "attempts",
+        "attempt-1",
+        "stderr.log",
+      ),
+      "Authorization: Bearer test-open-source-key",
+      "utf8",
+    );
+
+    const response = await invokeRoute(artifactHandler, {
+      params: {
+        id: runResultFixture.id,
+        attemptId: runAttemptFixture.id,
+        artifactKind: "stderr",
+      },
+    });
+
+    expect(response).toEqual({
+      statusCode: 200,
+      body: "Authorization: Bearer [REDACTED]",
+    });
+
+    await server.closeServer();
+  });
+
   it("serves legacy absolute-path attempt artifacts", async () => {
-    const legacyArtifactsDirectory = await mkdtemp(join(tmpdir(), "repobench-legacy-artifacts-"));
+    const legacyArtifactsDirectory = join(
+      process.cwd(),
+      ".repobench-artifacts",
+      "legacy",
+      "attempt-1",
+    );
     const legacyStdoutPath = join(legacyArtifactsDirectory, "stdout.log");
+    await mkdir(legacyArtifactsDirectory, { recursive: true });
     await writeFile(legacyStdoutPath, "legacy artifact stdout", "utf8");
 
     const server = createTestServer({
@@ -825,7 +933,79 @@ describe("API route validation and queueing", () => {
     });
 
     await server.closeServer();
+  });
+
+  it("returns 404 for legacy absolute-path artifacts outside the artifact root", async () => {
+    const legacyArtifactsDirectory = await mkdtemp(join(tmpdir(), "repobench-legacy-artifacts-"));
+    const legacyStdoutPath = join(legacyArtifactsDirectory, "stdout.log");
+    await writeFile(legacyStdoutPath, "legacy artifact stdout", "utf8");
+
+    const server = createTestServer({
+      runAttempt: {
+        ...runAttemptFixture,
+        stdoutLogPath: legacyStdoutPath,
+      },
+    });
+    server.createdRuns.push(runResultFixture);
+    registerRunRoutes(server);
+
+    const artifactHandler = server.registeredGetRoutes.get(
+      "/api/runs/:id/attempts/:attemptId/artifacts/:artifactKind",
+    );
+    if (artifactHandler === undefined) {
+      throw new Error("Expected artifact route to be registered");
+    }
+
+    const response = await invokeRoute(artifactHandler, {
+      params: {
+        id: runResultFixture.id,
+        attemptId: runAttemptFixture.id,
+        artifactKind: "stdout",
+      },
+    });
+
+    expect(response).toEqual({
+      statusCode: 404,
+      body: {
+        error: "Artifact not found",
+      },
+    });
+
+    await server.closeServer();
     await rm(legacyArtifactsDirectory, { recursive: true, force: true });
+  });
+
+  it("rejects runs created from invalid stored agent profiles", async () => {
+    const invalidStoredProfile: AgentProfile = {
+      ...agentProfileFixture,
+      runtimeConfig: {
+        transport: "provider-api",
+        apiKeyEnvVar: "DATABASE_URL",
+      },
+    };
+
+    const server = createTestServer({
+      agentProfiles: [invalidStoredProfile],
+    });
+    registerRunRoutes(server);
+
+    const createRunHandler = server.registeredPostRoutes.get("/api/suites/:suiteId/runs");
+    if (createRunHandler === undefined) {
+      throw new Error("Expected run creation handler to be registered");
+    }
+
+    const response = await invokeRoute(createRunHandler, {
+      params: { suiteId: suiteFixture.id },
+      body: { agentProfileId: invalidStoredProfile.id },
+    });
+
+    expect(response).toEqual({
+      statusCode: 400,
+      body: {
+        error:
+          "Agent profile is not runnable: runtimeConfig.apiKeyEnvVar must be ANTHROPIC_API_KEY",
+      },
+    });
   });
 
   it("blocks hosted runs when operator opt-in is disabled", async () => {

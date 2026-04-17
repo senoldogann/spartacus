@@ -9,7 +9,7 @@ RepoBench replays merged pull requests from your real codebase as reproducible b
 | Problem                                                                                   | RepoBench                                                                                                                                     |
 | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Public benchmarks (SWE-bench, HumanEval) use fixed datasets that don't reflect your stack | Benchmarks on your actual codebase, dependencies, and conventions                                                                             |
-| Agent eval results are not reproducible                                                   | Deterministic metrics, sandboxed runs, versioned task sets                                                                                    |
+| Agent eval results are not reproducible                                                   | Deterministic verification, versioned task sets, and stored run metadata                                                                      |
 | No way to compare agents side-by-side on _your_ code                                      | Head-to-head comparison on identical tasks from your repo history                                                                             |
 | Vendor claims are hard to verify internally                                               | Self-hosted by default; local/self-hosted agents keep code on your infrastructure, while hosted providers require an explicit API integration |
 
@@ -23,7 +23,7 @@ git clone https://github.com/repobench/repobench.git
 cd repobench
 pnpm install
 
-# Start local infrastructure (Postgres, Redis, MinIO)
+# Start local infrastructure (Postgres, Redis, plus an unused MinIO service kept for future artifact-store work)
 pnpm docker:up
 
 # Build all packages
@@ -145,7 +145,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Security
 
-See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
+See [SECURITY.md](SECURITY.md) for reporting vulnerabilities and the current execution boundary.
 
 ## License
 

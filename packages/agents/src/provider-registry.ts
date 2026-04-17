@@ -4,7 +4,14 @@ import { createClaudeAdapter } from "./providers/claude.js";
 import { createCodexAdapter } from "./providers/codex.js";
 import { createOpenSourceAdapter } from "./providers/open-source.js";
 
-const LOCAL_OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+const DEFAULT_LOCAL_OPENAI_BASE_URLS = [
+  "http://127.0.0.1:11434/v1",
+  "http://localhost:11434/v1",
+  "http://[::1]:11434/v1",
+] as const;
+const LOCAL_OPENAI_BASE_URL = DEFAULT_LOCAL_OPENAI_BASE_URLS[0];
+const LOCAL_OPENAI_API_KEY_ENV_VAR = "OPEN_SOURCE_API_KEY";
+const LOCAL_OPENAI_BASE_URLS_ENV_VAR = "ALLOWED_LOCAL_OPENAI_BASE_URLS";
 
 const HOSTED_PROVIDER_CREDENTIAL_ENV_VARS = {
   claude: "ANTHROPIC_API_KEY",
@@ -36,6 +43,112 @@ function isLoopbackUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function normalizeUrlForComparison(value: string): string {
+  const parsedUrl = new URL(value);
+  parsedUrl.hash = "";
+  parsedUrl.pathname = parsedUrl.pathname.replace(/\/+$/u, "");
+  if (parsedUrl.pathname.length === 0) {
+    parsedUrl.pathname = "/";
+  }
+
+  return parsedUrl.toString();
+}
+
+function getAllowedLocalOpenAiBaseUrls(): ReadonlySet<string> {
+  const configuredValue = process.env[LOCAL_OPENAI_BASE_URLS_ENV_VAR];
+  const configuredUrls =
+    configuredValue === undefined
+      ? [...DEFAULT_LOCAL_OPENAI_BASE_URLS]
+      : configuredValue
+          .split(",")
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0);
+
+  if (configuredUrls.length === 0) {
+    throw new Error(`${LOCAL_OPENAI_BASE_URLS_ENV_VAR} must contain at least one URL`);
+  }
+
+  return new Set(configuredUrls.map((value) => normalizeUrlForComparison(value)));
+}
+
+function isAllowedLocalOpenAiBaseUrl(value: string): boolean {
+  if (!isValidUrl(value)) {
+    return false;
+  }
+
+  return getAllowedLocalOpenAiBaseUrls().has(normalizeUrlForComparison(value));
+}
+
+function getAllowedCredentialEnvVar(
+  provider: AgentProfile["provider"],
+  executionMode: AgentExecutionMode,
+  transport: AgentRuntimeConfig["transport"],
+): string | null {
+  if (executionMode === "hosted") {
+    if (transport !== "provider-api") {
+      return null;
+    }
+
+    if (provider === "claude" || provider === "codex") {
+      return HOSTED_PROVIDER_CREDENTIAL_ENV_VARS[provider];
+    }
+
+    return null;
+  }
+
+  if (provider === "open-source" && transport === "openai-compatible-http") {
+    return LOCAL_OPENAI_API_KEY_ENV_VAR;
+  }
+
+  return null;
+}
+
+function assertSupportedCredentialEnvVar(agentProfile: AgentProfile): void {
+  const configuredCredentialEnvVar = agentProfile.runtimeConfig.apiKeyEnvVar;
+  if (configuredCredentialEnvVar === undefined) {
+    return;
+  }
+
+  const allowedCredentialEnvVar = getAllowedCredentialEnvVar(
+    agentProfile.provider,
+    agentProfile.executionMode,
+    agentProfile.runtimeConfig.transport,
+  );
+  if (allowedCredentialEnvVar === null) {
+    throw new Error("runtimeConfig.apiKeyEnvVar is not supported for this agent profile");
+  }
+
+  if (configuredCredentialEnvVar !== allowedCredentialEnvVar) {
+    throw new Error(`runtimeConfig.apiKeyEnvVar must be ${allowedCredentialEnvVar}`);
+  }
+}
+
+function resolveRequestedCredentialEnvVar(
+  provider: AgentProfile["provider"],
+  executionMode: AgentExecutionMode,
+  transport: AgentRuntimeConfig["transport"],
+  apiKeyEnvVar: unknown,
+): string | undefined {
+  if (apiKeyEnvVar === undefined) {
+    return undefined;
+  }
+
+  if (typeof apiKeyEnvVar !== "string") {
+    throw new Error("runtimeConfig.apiKeyEnvVar must be a string");
+  }
+
+  const allowedCredentialEnvVar = getAllowedCredentialEnvVar(provider, executionMode, transport);
+  if (allowedCredentialEnvVar === null) {
+    throw new Error("runtimeConfig.apiKeyEnvVar is not supported for this agent profile");
+  }
+
+  if (apiKeyEnvVar !== allowedCredentialEnvVar) {
+    throw new Error(`runtimeConfig.apiKeyEnvVar must be ${allowedCredentialEnvVar}`);
+  }
+
+  return apiKeyEnvVar;
 }
 
 export function getDefaultExecutionModeForProvider(
@@ -78,7 +191,6 @@ export function normalizeAgentRuntimeConfig(
   }
 
   const transport = runtimeConfig["transport"];
-  const apiKeyEnvVar = runtimeConfig["apiKeyEnvVar"];
 
   if (typeof transport !== "string") {
     return getDefaultRuntimeConfig(provider, executionMode);
@@ -87,7 +199,10 @@ export function normalizeAgentRuntimeConfig(
   if (transport === "provider-api") {
     return {
       transport,
-      apiKeyEnvVar: typeof apiKeyEnvVar === "string" ? apiKeyEnvVar : undefined,
+      apiKeyEnvVar:
+        typeof runtimeConfig["apiKeyEnvVar"] === "string"
+          ? runtimeConfig["apiKeyEnvVar"]
+          : undefined,
     };
   }
 
@@ -101,7 +216,10 @@ export function normalizeAgentRuntimeConfig(
     return {
       transport,
       baseUrl,
-      apiKeyEnvVar: typeof apiKeyEnvVar === "string" ? apiKeyEnvVar : undefined,
+      apiKeyEnvVar:
+        typeof runtimeConfig["apiKeyEnvVar"] === "string"
+          ? runtimeConfig["apiKeyEnvVar"]
+          : undefined,
     };
   }
 
@@ -122,20 +240,21 @@ export function resolveRequestedAgentRuntimeConfig(
   }
 
   const transport = runtimeConfig["transport"];
-  const apiKeyEnvVar = runtimeConfig["apiKeyEnvVar"];
 
   if (typeof transport !== "string") {
     throw new Error("runtimeConfig.transport is required");
   }
 
-  if (apiKeyEnvVar !== undefined && typeof apiKeyEnvVar !== "string") {
-    throw new Error("runtimeConfig.apiKeyEnvVar must be a string");
-  }
-
   if (transport === "provider-api") {
+    const resolvedApiKeyEnvVar = resolveRequestedCredentialEnvVar(
+      provider,
+      executionMode,
+      transport,
+      runtimeConfig["apiKeyEnvVar"],
+    );
     return {
       transport,
-      apiKeyEnvVar: typeof apiKeyEnvVar === "string" ? apiKeyEnvVar : undefined,
+      apiKeyEnvVar: resolvedApiKeyEnvVar,
     };
   }
 
@@ -146,10 +265,16 @@ export function resolveRequestedAgentRuntimeConfig(
       throw new Error("runtimeConfig.baseUrl must be a valid URL");
     }
 
+    const resolvedApiKeyEnvVar = resolveRequestedCredentialEnvVar(
+      provider,
+      executionMode,
+      transport,
+      runtimeConfig["apiKeyEnvVar"],
+    );
     return {
       transport,
       baseUrl,
-      apiKeyEnvVar: typeof apiKeyEnvVar === "string" ? apiKeyEnvVar : undefined,
+      apiKeyEnvVar: resolvedApiKeyEnvVar,
     };
   }
 
@@ -166,6 +291,7 @@ export function assertSupportedAgentProfile(agentProfile: AgentProfile): void {
       throw new Error("Hosted execution requires runtimeConfig.transport=provider-api");
     }
 
+    assertSupportedCredentialEnvVar(agentProfile);
     return;
   }
 
@@ -188,6 +314,14 @@ export function assertSupportedAgentProfile(agentProfile: AgentProfile): void {
       "Local open-source execution requires a loopback runtimeConfig.baseUrl (localhost/127.0.0.1/::1)",
     );
   }
+
+  if (!isAllowedLocalOpenAiBaseUrl(agentProfile.runtimeConfig.baseUrl)) {
+    throw new Error(
+      "Local open-source execution requires runtimeConfig.baseUrl to match ALLOWED_LOCAL_OPENAI_BASE_URLS",
+    );
+  }
+
+  assertSupportedCredentialEnvVar(agentProfile);
 }
 
 export function isHostedAgentProfile(agentProfile: AgentProfile): boolean {
@@ -195,6 +329,8 @@ export function isHostedAgentProfile(agentProfile: AgentProfile): boolean {
 }
 
 export function getRequiredCredentialEnvVar(agentProfile: AgentProfile): string | null {
+  assertSupportedAgentProfile(agentProfile);
+
   if (agentProfile.executionMode === "hosted") {
     if (agentProfile.provider === "claude" || agentProfile.provider === "codex") {
       return (

@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { EvaluationVerdict, RunAttempt } from "@repobench/domain";
 import { evaluatePatchInSandbox, scoreRun } from "@repobench/evaluator";
+import type { SandboxPatchEvaluationResult } from "@repobench/evaluator";
 import {
   createAgentAdapterForProfile,
   getRequiredCredentialEnvVar,
@@ -23,6 +24,7 @@ import {
   createRepositoryStore,
   resolveLocalArtifactPath,
 } from "@repobench/storage";
+import type { RunAttemptStore } from "@repobench/storage";
 
 const execFileAsync = promisify(execFile);
 
@@ -45,13 +47,18 @@ const SECRET_ENV_VAR_NAMES = [
   "GITHUB_TOKEN",
   "ANTHROPIC_API_KEY",
   "OPENAI_API_KEY",
+  "OPEN_SOURCE_API_KEY",
   "API_AUTH_TOKEN",
 ] as const;
 
 type PersistedAttemptArtifacts = {
-  readonly patchArtifactPath: string | null;
   readonly stdoutLogPath: string | null;
   readonly stderrLogPath: string | null;
+};
+
+type AttemptLogArtifacts = {
+  readonly stdout: string;
+  readonly stderr: string;
 };
 
 function createCloneUrl(cloneUrl: string): string {
@@ -85,21 +92,76 @@ async function persistAttemptArtifacts(
   runId: string,
   taskId: string,
   attemptId: string,
-  patchContent: string,
   stdout: string,
   stderr: string,
 ): Promise<PersistedAttemptArtifacts> {
-  const [patchArtifactPath, stdoutLogPath, stderrLogPath] = await Promise.all([
-    persistArtifact(buildArtifactKey(runId, taskId, attemptId, "patch.diff"), patchContent),
-    persistArtifact(buildArtifactKey(runId, taskId, attemptId, "stdout.log"), stdout),
-    persistArtifact(buildArtifactKey(runId, taskId, attemptId, "stderr.log"), stderr),
+  const [stdoutLogPath, stderrLogPath] = await Promise.all([
+    persistArtifact(buildArtifactKey(runId, taskId, attemptId, "stdout.log"), sanitizeText(stdout)),
+    persistArtifact(buildArtifactKey(runId, taskId, attemptId, "stderr.log"), sanitizeText(stderr)),
   ]);
 
   return {
-    patchArtifactPath,
     stdoutLogPath,
     stderrLogPath,
   };
+}
+
+function formatLogArtifactSection(label: string, content: string): string {
+  const trimmedContent = content.trim();
+  if (trimmedContent.length === 0) {
+    return "";
+  }
+
+  return [`=== ${label} ===`, trimmedContent].join("\n");
+}
+
+export function buildAttemptLogArtifacts(
+  agentStdout: string,
+  agentStderr: string,
+  patchResult: SandboxPatchEvaluationResult,
+): AttemptLogArtifacts {
+  const stdoutSections = [
+    formatLogArtifactSection("AGENT STDOUT", agentStdout),
+    patchResult.testResult !== null
+      ? formatLogArtifactSection("SANDBOX STDOUT", patchResult.testResult.stdout)
+      : "",
+  ].filter((section) => section.length > 0);
+  const stderrSections = [
+    formatLogArtifactSection("AGENT STDERR", agentStderr),
+    formatLogArtifactSection("PATCH APPLY OUTPUT", patchResult.patchOutput),
+    patchResult.testResult !== null
+      ? formatLogArtifactSection("SANDBOX STDERR", patchResult.testResult.stderr)
+      : "",
+  ].filter((section) => section.length > 0);
+
+  return {
+    stdout: stdoutSections.join("\n\n"),
+    stderr: stderrSections.join("\n\n"),
+  };
+}
+
+async function syncRunningAttemptArtifacts(
+  runAttemptStore: Pick<RunAttemptStore, "update">,
+  attemptId: string,
+  patchArtifactPath: string | null,
+  stdoutLogPath: string | null,
+  stderrLogPath: string | null,
+  tokenCount: number | null,
+  estimatedCostUsd: number | null,
+  durationMs: number | null,
+  errorMessage: string | null,
+): Promise<void> {
+  await runAttemptStore.update(attemptId, {
+    status: "running",
+    completedAt: null,
+    patchArtifactPath,
+    stdoutLogPath,
+    stderrLogPath,
+    tokenCount,
+    estimatedCostUsd,
+    durationMs,
+    errorMessage,
+  });
 }
 
 function buildFailureMessage(prefix: string, details: string): string {
@@ -134,7 +196,11 @@ function isSettledAttemptStatus(status: RunAttempt["status"]): boolean {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
 
-function buildExistingRunProgress(
+function isProgressSettledAttemptStatus(status: RunAttempt["status"]): boolean {
+  return status === "completed" || status === "failed";
+}
+
+export function buildExistingRunProgress(
   existingAttempts: ReadonlyArray<RunAttempt>,
   existingVerdicts: ReadonlyArray<EvaluationVerdict>,
 ): {
@@ -144,7 +210,7 @@ function buildExistingRunProgress(
   readonly passedTasks: number;
   readonly failedTasks: number;
 } {
-  const settledTaskIds = new Set<string>();
+  const settledTaskIds = new Set(existingVerdicts.map((verdict) => verdict.taskId));
   const attemptCountByTask = new Map<string, number>();
   const passedTaskIds = new Set(
     existingVerdicts.filter((verdict) => verdict.passed).map((verdict) => verdict.taskId),
@@ -153,7 +219,7 @@ function buildExistingRunProgress(
   for (const attempt of existingAttempts) {
     attemptCountByTask.set(attempt.taskId, (attemptCountByTask.get(attempt.taskId) ?? 0) + 1);
 
-    if (isSettledAttemptStatus(attempt.status)) {
+    if (isProgressSettledAttemptStatus(attempt.status)) {
       settledTaskIds.add(attempt.taskId);
     }
   }
@@ -172,6 +238,72 @@ function buildExistingRunProgress(
     passedTasks,
     failedTasks: settledTaskIds.size - passedTasks,
   };
+}
+
+function getRecoveredAttemptStatus(verdict: EvaluationVerdict): "completed" | "failed" {
+  return verdict.passed ? "completed" : "failed";
+}
+
+export async function reconcileRecoveredAttempts(
+  runAttemptStore: Pick<RunAttemptStore, "update">,
+  existingAttempts: ReadonlyArray<RunAttempt>,
+  existingVerdicts: ReadonlyArray<EvaluationVerdict>,
+): Promise<void> {
+  const verdictByAttemptId = new Map(
+    existingVerdicts.map((verdict) => [verdict.attemptId, verdict] as const),
+  );
+
+  await Promise.all(
+    existingAttempts.map(async (attempt) => {
+      if (isSettledAttemptStatus(attempt.status)) {
+        return;
+      }
+
+      const verdict = verdictByAttemptId.get(attempt.id);
+      if (verdict === undefined) {
+        return;
+      }
+
+      await runAttemptStore.update(attempt.id, {
+        status: getRecoveredAttemptStatus(verdict),
+        completedAt: attempt.completedAt ?? verdict.evaluatedAt,
+        patchArtifactPath: attempt.patchArtifactPath,
+        stdoutLogPath: attempt.stdoutLogPath,
+        stderrLogPath: attempt.stderrLogPath,
+        tokenCount: attempt.tokenCount,
+        estimatedCostUsd: attempt.estimatedCostUsd,
+        durationMs: attempt.durationMs,
+        errorMessage: attempt.errorMessage,
+      });
+    }),
+  );
+}
+
+export async function cancelStaleAttemptsForTask(
+  runAttemptStore: Pick<RunAttemptStore, "update">,
+  existingAttempts: ReadonlyArray<RunAttempt>,
+  taskId: string,
+): Promise<void> {
+  const staleAttempts = existingAttempts.filter(
+    (attempt) => attempt.taskId === taskId && !isSettledAttemptStatus(attempt.status),
+  );
+
+  await Promise.all(
+    staleAttempts.map((attempt) =>
+      runAttemptStore.update(attempt.id, {
+        status: "cancelled",
+        completedAt: attempt.completedAt ?? new Date(),
+        patchArtifactPath: attempt.patchArtifactPath,
+        stdoutLogPath: attempt.stdoutLogPath,
+        stderrLogPath: attempt.stderrLogPath,
+        tokenCount: attempt.tokenCount,
+        estimatedCostUsd: attempt.estimatedCostUsd,
+        durationMs: attempt.durationMs,
+        errorMessage:
+          attempt.errorMessage ?? "Cancelled after worker recovery restarted the task attempt",
+      }),
+    ),
+  );
 }
 
 // Clone repo at a specific commit into a temp directory
@@ -256,7 +388,14 @@ export async function runBenchmarkJob(
       );
     }
 
-    const requiredCredentialEnvVar = getRequiredCredentialEnvVar(agentProfile);
+    let requiredCredentialEnvVar: string | null;
+    try {
+      requiredCredentialEnvVar = getRequiredCredentialEnvVar(agentProfile);
+    } catch (error: unknown) {
+      const message = toSanitizedErrorMessage(error);
+      throw new Error(`Agent profile is not runnable: ${message}`);
+    }
+
     if (requiredCredentialEnvVar !== null) {
       const credentialValue = process.env[requiredCredentialEnvVar];
       if (credentialValue === undefined || credentialValue.trim().length === 0) {
@@ -271,6 +410,7 @@ export async function runBenchmarkJob(
       runAttemptStore.findByRun(run.id),
       evaluationVerdictStore.findByRun(run.id),
     ]);
+    await reconcileRecoveredAttempts(runAttemptStore, existingAttempts, existingVerdicts);
     const existingProgress = buildExistingRunProgress(existingAttempts, existingVerdicts);
     const settledTaskIds = existingProgress.settledTaskIds;
     const attemptCountByTask = existingProgress.attemptCountByTask;
@@ -313,6 +453,8 @@ export async function runBenchmarkJob(
       if (settledTaskIds.has(task.id)) {
         continue;
       }
+
+      await cancelStaleAttemptsForTask(runAttemptStore, existingAttempts, task.id);
 
       // eslint-disable-next-line no-console
       console.log(`Processing task: ${task.id} — ${task.title}`);
@@ -364,17 +506,41 @@ export async function runBenchmarkJob(
         tokenCount = agentResult.tokenCount;
         estimatedCostUsd = agentResult.estimatedCostUsd;
 
-        const persistedArtifacts = await persistAttemptArtifacts(
+        patchArtifactPath = await persistArtifact(
+          buildArtifactKey(run.id, task.id, attemptId, "patch.diff"),
+          agentResult.patchContent,
+        );
+        await syncRunningAttemptArtifacts(
+          runAttemptStore,
+          attemptId,
+          patchArtifactPath,
+          stdoutLogPath,
+          stderrLogPath,
+          tokenCount,
+          estimatedCostUsd,
+          durationMs,
+          attemptErrorMessage,
+        );
+        const initialLogArtifacts = await persistAttemptArtifacts(
           run.id,
           task.id,
           attemptId,
-          agentResult.patchContent,
           agentResult.stdout,
           agentResult.stderr,
         );
-        patchArtifactPath = persistedArtifacts.patchArtifactPath;
-        stdoutLogPath = persistedArtifacts.stdoutLogPath;
-        stderrLogPath = persistedArtifacts.stderrLogPath;
+        stdoutLogPath = initialLogArtifacts.stdoutLogPath;
+        stderrLogPath = initialLogArtifacts.stderrLogPath;
+        await syncRunningAttemptArtifacts(
+          runAttemptStore,
+          attemptId,
+          patchArtifactPath,
+          stdoutLogPath,
+          stderrLogPath,
+          tokenCount,
+          estimatedCostUsd,
+          durationMs,
+          attemptErrorMessage,
+        );
 
         const patchResult = await evaluatePatchInSandbox(
           workspacePath,
@@ -382,6 +548,31 @@ export async function runBenchmarkJob(
           task.snapshot.testCommand,
           SANDBOX_IMAGE,
           TASK_TIMEOUT_MS,
+        );
+        const logArtifacts = buildAttemptLogArtifacts(
+          agentResult.stdout,
+          agentResult.stderr,
+          patchResult,
+        );
+        const persistedArtifacts = await persistAttemptArtifacts(
+          run.id,
+          task.id,
+          attemptId,
+          logArtifacts.stdout,
+          logArtifacts.stderr,
+        );
+        stdoutLogPath = persistedArtifacts.stdoutLogPath;
+        stderrLogPath = persistedArtifacts.stderrLogPath;
+        await syncRunningAttemptArtifacts(
+          runAttemptStore,
+          attemptId,
+          patchArtifactPath,
+          stdoutLogPath,
+          stderrLogPath,
+          tokenCount,
+          estimatedCostUsd,
+          durationMs,
+          attemptErrorMessage,
         );
         durationMs = Date.now() - attemptStartedAt.getTime();
 

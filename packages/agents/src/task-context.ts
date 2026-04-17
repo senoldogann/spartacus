@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import type { AgentProfile, Task } from "@repobench/domain";
 
@@ -77,6 +77,14 @@ function isInsideWorkspace(workspacePath: string, filePath: string): boolean {
   return !relativePath.startsWith("..") && !isAbsolute(relativePath);
 }
 
+function createUnavailableContextFile(filePath: string): ContextFile {
+  return {
+    path: filePath,
+    content: UNAVAILABLE_FILE_CONTENT,
+    truncated: false,
+  };
+}
+
 async function loadContextFile(
   workspacePath: string,
   filePath: string,
@@ -89,7 +97,19 @@ async function loadContextFile(
   const absolutePath = resolve(workspacePath, filePath);
 
   try {
-    const content = await readFile(absolutePath, "utf8");
+    const workspaceRealPath = await realpath(workspacePath);
+    const pathStats = await lstat(absolutePath);
+    if (pathStats.isSymbolicLink()) {
+      return createUnavailableContextFile(filePath);
+    }
+
+    const realFilePath = await realpath(absolutePath);
+    const relativeRealPath = relative(workspaceRealPath, realFilePath);
+    if (relativeRealPath.startsWith("..") || isAbsolute(relativeRealPath)) {
+      return createUnavailableContextFile(filePath);
+    }
+
+    const content = await readFile(realFilePath, "utf8");
     const truncatedContent = truncateText(content, maxFileChars);
 
     return {
@@ -103,11 +123,7 @@ async function loadContextFile(
       "code" in error &&
       (error.code === "ENOENT" || error.code === "EISDIR")
     ) {
-      return {
-        path: filePath,
-        content: UNAVAILABLE_FILE_CONTENT,
-        truncated: false,
-      };
+      return createUnavailableContextFile(filePath);
     }
 
     throw error;
@@ -136,7 +152,7 @@ async function loadChangedFileContexts(
 }
 
 function formatChangedFileList(changedFiles: ReadonlyArray<string>): string {
-  return changedFiles.map((filePath) => `- ${filePath}`).join("\n");
+  return changedFiles.map((filePath) => `- ${JSON.stringify(filePath)}`).join("\n");
 }
 
 function formatUntrustedSection(label: string, content: string): string {
@@ -151,7 +167,11 @@ function formatContextFiles(files: ReadonlyArray<ContextFile>): string {
   return files
     .map((file) => {
       const suffix = file.truncated ? " (truncated)" : "";
-      return formatUntrustedSection(`FILE ${file.path}${suffix}`, file.content);
+      const fileHeader = [
+        `Path: ${JSON.stringify(file.path)}`,
+        `Truncated: ${file.truncated ? "yes" : "no"}`,
+      ].join("\n");
+      return formatUntrustedSection(`FILE CONTENT${suffix}`, `${fileHeader}\n\n${file.content}`);
     })
     .join("\n\n");
 }
@@ -174,7 +194,10 @@ export async function buildHostedAgentPrompt(
     `Base commit: ${task.snapshot.baseCommitSha}`,
     `Target commit: ${task.snapshot.headCommitSha}`,
     formatUntrustedSection("TEST COMMAND", task.snapshot.testCommand),
-    `Changed files (${task.snapshot.changedFiles.length}):\n${formatChangedFileList(task.snapshot.changedFiles)}`,
+    formatUntrustedSection(
+      `CHANGED FILES (${task.snapshot.changedFiles.length})`,
+      formatChangedFileList(task.snapshot.changedFiles),
+    ),
     context.omittedCount > 0
       ? `Additional changed files omitted from file context: ${context.omittedCount}`
       : "",

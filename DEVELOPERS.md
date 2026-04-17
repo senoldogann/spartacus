@@ -20,7 +20,7 @@ pnpm install
 # Copy environment variables
 cp .env.example .env
 
-# Start infrastructure (Postgres, Redis, MinIO)
+# Start infrastructure (Postgres, Redis, plus an unused MinIO service kept for future artifact-store work)
 pnpm docker:up
 
 # Run database migrations
@@ -46,7 +46,7 @@ pnpm dev
 | `packages/agents`       | Agent adapter interfaces and implementations |
 | `packages/sandbox`      | Docker-based isolated execution              |
 | `packages/evaluator`    | Deterministic scoring engine                 |
-| `packages/storage`      | Database and artifact store access           |
+| `packages/storage`      | Database and local artifact persistence      |
 | `packages/ui`           | Shared React UI components                   |
 | `services/worker`       | Background job processor (BullMQ)            |
 
@@ -86,13 +86,13 @@ Turborepo handles build ordering via the `turbo.json` pipeline configuration.
 
 See `.env.example` for all required variables. Key ones:
 
-| Variable                  | Description                                             |
-| ------------------------- | ------------------------------------------------------- |
-| `API_AUTH_TOKEN`          | Shared bearer token required by protected API endpoints |
-| `DATABASE_URL`            | Postgres connection string                              |
-| `REDIS_URL`               | Redis connection string                                 |
-| `ARTIFACT_STORE_ENDPOINT` | S3-compatible store endpoint                            |
-| `GITHUB_TOKEN`            | GitHub API access token                                 |
+| Variable         | Description                                             |
+| ---------------- | ------------------------------------------------------- |
+| `API_AUTH_TOKEN` | Shared bearer token required by protected API endpoints |
+| `DATABASE_URL`   | Postgres connection string                              |
+| `REDIS_URL`      | Redis connection string                                 |
+| `ARTIFACTS_DIR`  | Local directory for persisted patches and logs          |
+| `GITHUB_TOKEN`   | GitHub API access token                                 |
 
 ## Adding a New Package
 

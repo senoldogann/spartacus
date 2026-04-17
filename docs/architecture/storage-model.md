@@ -27,16 +27,14 @@ Job queue and caching layer.
 
 **Connection**: Via `REDIS_URL`.
 
-### S3-Compatible Artifact Store
+### Local Artifact Directory
 
-Binary and text artifact storage.
+Binary and text artifact storage on the worker host.
 
 **Responsibilities**:
 
 - Agent-generated patches
-- Stdout/stderr logs from sandbox runs
-- Test output logs
-- Generated reports
+- Combined agent + sandbox stdout/stderr logs
 
 **Key Structure**:
 
@@ -44,10 +42,9 @@ Binary and text artifact storage.
 runs/<run-id>/tasks/<task-id>/attempts/<attempt-id>/patch.diff
 runs/<run-id>/tasks/<task-id>/attempts/<attempt-id>/stdout.log
 runs/<run-id>/tasks/<task-id>/attempts/<attempt-id>/stderr.log
-runs/<run-id>/report.json
 ```
 
-**Connection**: Via `ARTIFACT_STORE_ENDPOINT`, access key, secret key, bucket name.
+**Connection**: Via `ARTIFACTS_DIR`.
 
 ## Retention Policy
 

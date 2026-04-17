@@ -56,6 +56,6 @@ Connect Repo → Import PRs → Filter → Build Tasks → Create Suite
 ## Phase 3: Report
 
 1. User requests report via CLI, API, or dashboard
-2. System aggregates EvaluationVerdicts for the run
-3. Metrics computed: task pass rate, one-shot rate, avg cost, avg duration
-4. Compare mode shows two runs side-by-side with per-task diff
+2. Current `/api/runs/:id/report` returns run-level totals plus derived completion/pass rates
+3. Current `/api/compare` returns two same-suite runs side-by-side at the run-summary level
+4. Raw attempt and verdict details remain available via `/api/runs/:id/results`

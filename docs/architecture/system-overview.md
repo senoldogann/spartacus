@@ -28,8 +28,8 @@
 ├─────────────────────────────────────────────────────────────┤
 │                     Infrastructure                           │
 │  ┌────────────┐ ┌────────────┐ ┌──────────────────────────┐ │
-│  │ PostgreSQL │ │   Redis    │ │  S3-Compatible Store     │ │
-│  │ (metadata) │ │ (queue)    │ │  (artifacts/logs)        │ │
+│  │ PostgreSQL │ │   Redis    │ │ Local Artifact Directory │ │
+│  │ (metadata) │ │ (queue)    │ │   (patches/logs)         │ │
 │  └────────────┘ └────────────┘ └──────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -44,7 +44,7 @@
 | Agent Adapters | `@repobench/agents`       | Invoke coding agents via their APIs             |
 | Sandbox        | `@repobench/sandbox`      | Docker-based isolated execution                 |
 | Evaluator      | `@repobench/evaluator`    | Apply patches, run tests, produce scores        |
-| Storage        | `@repobench/storage`      | Postgres schema, data access, artifact store    |
+| Storage        | `@repobench/storage`      | Postgres schema, data access, local artifacts   |
 | Worker         | `@repobench/worker`       | Background job processor (BullMQ)               |
 | API            | `@repobench/api`          | REST API for all operations                     |
 | CLI            | `@repobench/cli`          | Command-line interface                          |
@@ -54,5 +54,5 @@
 ## Data Flow
 
 1. **Import**: CLI/API → Repo Ingest → Task Builder → Storage
-2. **Run**: CLI/API → Queue (Redis) → Worker → Sandbox → Agent → Evaluator → Storage
+2. **Run**: CLI/API → Queue (Redis) → Worker → Agent → Sandbox verifier → Evaluator → Storage
 3. **Report**: CLI/API/Dashboard → Storage → Formatted output

@@ -23,12 +23,13 @@ We will acknowledge receipt within 48 hours and provide a timeline for a fix wit
 
 ## Security Model
 
-RepoBench processes source code and runs agents in sandboxed environments. Key security boundaries:
+RepoBench processes source code on the worker host and uses Docker as a verification boundary. Key security boundaries:
 
-- **Sandbox isolation**: Agent runs execute inside Docker containers with restricted network access
-- **Code privacy**: Repository data is stored locally — no code is sent to external services beyond the agent APIs
-- **Secret masking**: Logs and artifacts are scrubbed for secrets before storage
-- **Artifact retention**: Configurable retention policies for benchmark artifacts
+- **Verification sandbox**: Patch application and verification commands run inside Docker containers with restricted network access
+- **Worker-host execution**: Repository cloning, prompt construction, and hosted/local agent API calls still happen on the worker host
+- **Code privacy**: Repository data stays on your infrastructure by default; hosted providers send selected prompt context off-box only when explicitly enabled
+- **Secret masking**: Selected API responses sanitize configured secrets; raw local artifacts should be treated as internal data
+- **Artifact retention**: Artifacts are stored under the configured local artifact directory in the current implementation
 
 ## Disclosure Policy
 

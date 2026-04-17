@@ -42,13 +42,13 @@ Deterministic scoring result for a run attempt. Contains all computed metrics.
 
 ## Storage Mapping
 
-| Entity            | Primary Store | Notes                              |
-| ----------------- | ------------- | ---------------------------------- |
-| Repository        | Postgres      | Metadata only                      |
-| BenchmarkSuite    | Postgres      | Metadata + task count              |
-| Task              | Postgres      | Snapshot stored as JSONB           |
-| AgentProfile      | Postgres      | Config stored as JSONB             |
-| Run               | Postgres      | Status updated during execution    |
-| RunAttempt        | Postgres      | Log paths reference artifact store |
-| EvaluationVerdict | Postgres      | Metrics stored as JSONB            |
-| Patches, Logs     | S3-compatible | Keyed by run/task/attempt          |
+| Entity            | Primary Store | Notes                                            |
+| ----------------- | ------------- | ------------------------------------------------ |
+| Repository        | Postgres      | Metadata only                                    |
+| BenchmarkSuite    | Postgres      | Metadata + task count                            |
+| Task              | Postgres      | Snapshot stored as JSONB                         |
+| AgentProfile      | Postgres      | Config stored as JSONB                           |
+| Run               | Postgres      | Status updated during execution                  |
+| RunAttempt        | Postgres      | Log paths reference the local artifact directory |
+| EvaluationVerdict | Postgres      | Metrics stored as JSONB                          |
+| Patches, Logs     | Local disk    | Keyed by run/task/attempt                        |

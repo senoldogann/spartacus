@@ -37,6 +37,7 @@ const SECRET_ENV_VAR_NAMES = [
   "GITHUB_TOKEN",
   "ANTHROPIC_API_KEY",
   "OPENAI_API_KEY",
+  "OPEN_SOURCE_API_KEY",
   "API_AUTH_TOKEN",
   "DATABASE_URL",
   "REDIS_URL",
@@ -117,8 +118,14 @@ function resolveStoredArtifactPath(artifactReference: string): string {
     return resolveLocalArtifactPath(ARTIFACTS_ROOT, artifactReference);
   }
 
-  // Legacy runs persisted host filesystem paths before artifact keys were introduced.
-  return artifactReference;
+  const relativePath = relative(ARTIFACTS_ROOT, artifactReference);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    const error = new Error("Legacy artifact path is outside ARTIFACTS_DIR");
+    Object.assign(error, { code: "ENOENT" });
+    throw error;
+  }
+
+  return resolveLocalArtifactPath(ARTIFACTS_ROOT, relativePath);
 }
 
 function getRequiredRedisUrl(): string {
@@ -244,7 +251,14 @@ export function registerRunRoutes(server: FastifyInstance): void {
         });
       }
 
-      const requiredCredentialEnvVar = getRequiredCredentialEnvVar(agent);
+      let requiredCredentialEnvVar: string | null;
+      try {
+        requiredCredentialEnvVar = getRequiredCredentialEnvVar(agent);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return reply.code(400).send({ error: `Agent profile is not runnable: ${message}` });
+      }
+
       if (requiredCredentialEnvVar !== null) {
         const credentialValue = process.env[requiredCredentialEnvVar];
         if (credentialValue === undefined || credentialValue.trim().length === 0) {
@@ -375,7 +389,9 @@ export function registerRunRoutes(server: FastifyInstance): void {
     try {
       const artifactPath = resolveStoredArtifactPath(artifactKey);
       const artifactContent = await readFile(artifactPath, "utf8");
-      return reply.type(ARTIFACT_CONTENT_TYPES[artifactKind]).send(artifactContent);
+      const responseContent =
+        artifactKind === "patch" ? artifactContent : sanitizeText(artifactContent);
+      return reply.type(ARTIFACT_CONTENT_TYPES[artifactKind]).send(responseContent);
     } catch (error: unknown) {
       if (error instanceof Error && "code" in error && error.code === "ENOENT") {
         return reply.code(404).send({ error: "Artifact not found" });

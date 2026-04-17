@@ -1,17 +1,8 @@
 import Link from "next/link";
 import type React from "react";
-import { apiClient } from "../../lib/api-client";
+import { apiClient, type RunResponse } from "../../lib/api-client";
 
 export const dynamic = "force-dynamic";
-
-type Run = {
-  readonly id: string;
-  readonly status: string;
-  readonly totalTasks: number;
-  readonly passedTasks: number;
-  readonly failedTasks: number;
-  readonly createdAt: string;
-};
 
 type RunsPageProps = {
   searchParams: Promise<{ suiteId?: string }>;
@@ -41,17 +32,25 @@ export default async function RunsPage({
     return (
       <main className="p-8">
         <h1 className="text-2xl font-bold">Benchmark Runs</h1>
-        <p className="mt-4 text-gray-600">Select a repository and suite to view benchmark runs.</p>
+        <p className="mt-4 text-gray-600">
+          Select a suite to view benchmark runs, or create one from the setup page.
+        </p>
+        <Link
+          href="/setup"
+          className="mt-6 inline-flex rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+        >
+          Open setup
+        </Link>
       </main>
     );
   }
 
-  let runs: ReadonlyArray<Run> = [];
+  let runs: ReadonlyArray<RunResponse> = [];
   let error: string | null = null;
 
   try {
     const data = await apiClient.runs.list(suiteId);
-    runs = data.runs as ReadonlyArray<Run>;
+    runs = data.runs;
   } catch (err: unknown) {
     error = err instanceof Error ? err.message : "Failed to load runs";
   }

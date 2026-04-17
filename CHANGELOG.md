@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0
+
+- Added a browser-based setup flow at `/setup` for creating agent profiles, repositories, benchmark suites, and runs.
+- Stabilized the Docker-first local product path and aligned onboarding docs with the actual runtime behavior.
+- Removed GitHub Actions dependence on deprecated Node 20-based pnpm action runtimes and standardized workflows on Corepack + Node 22.
+- Prepared the initial public release workflow with versioned release notes and a release runbook aligned to the automated tag flow.# Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),

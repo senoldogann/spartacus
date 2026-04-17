@@ -22,6 +22,8 @@ docker compose ps  # postgres, redis, minio, and api should show healthy; web sh
 
 Then open `http://localhost:3000`.
 
+For the fastest real product walkthrough, go straight to `http://localhost:3000/setup` and use the browser setup flow to create an agent profile, repository, suite, and run.
+
 ## Source Development Setup
 
 ```bash

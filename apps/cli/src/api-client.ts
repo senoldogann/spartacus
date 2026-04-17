@@ -186,10 +186,10 @@ export const apiClient = {
 
   agentProfiles: {
     async list(): Promise<ReadonlyArray<AgentProfileResponse>> {
-      const data = await apiFetch<{ profiles: ReadonlyArray<AgentProfileResponse> }>(
+      const data = await apiFetch<{ agentProfiles: ReadonlyArray<AgentProfileResponse> }>(
         "/api/agent-profiles",
       );
-      return data.profiles;
+      return data.agentProfiles;
     },
   },
 };

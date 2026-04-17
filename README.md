@@ -53,20 +53,45 @@ pnpm build
 
 RepoBench currently has three user surfaces:
 
-- **Web dashboard** for browsing repositories, runs, run details, and comparisons
+- **Web dashboard** for browser-based setup, browsing repositories, run details, and comparisons
 - **REST API** for creating agent profiles, repositories, suites, and runs
 - **CLI** for importing suites, starting runs, and printing reports
 
-The current dashboard is read-only for creation flows. After cloning the repo, the UI may look empty until you create a repository, a suite, and a run through the API or CLI.
+The fastest onboarding path is now the browser setup flow at `/setup`. It lets you create:
+
+- agent profiles
+- repositories
+- benchmark suites
+- benchmark runs
 
 These URLs are the current entry points:
 
+- `/setup` walks through the first benchmark end-to-end
 - `/repos` lists connected repositories
 - `/runs?suiteId=<suite-id>` lists runs for one suite
 - `/runs/<run-id>` shows run details and attempts
 - `/compare?runA=<run-id>&runB=<run-id>` compares two runs from the same suite
 
 ## First Real Benchmark
+
+### Fastest path: use the browser setup flow
+
+After `docker compose up -d --build`, open:
+
+```text
+http://localhost:3000/setup
+```
+
+Then work through the page in this order:
+
+1. Create an agent profile.
+2. Connect a repository.
+3. Generate a benchmark suite.
+4. Start a run.
+
+You will be redirected to the run detail page as soon as the run is queued.
+
+### API path: use curl directly
 
 Load the same auth token you put in `.env`:
 
@@ -152,7 +177,7 @@ http://localhost:3000/runs/$RUN_ID
 - `/repos` is empty until you register at least one repository.
 - `/runs` without a `suiteId` only shows an instruction message.
 - `/compare` without both `runA` and `runB` only shows an instruction message.
-- If you want a form-based onboarding flow in the browser, that has not been built yet.
+- `/setup` is the intended browser-first onboarding flow.
 
 ## CLI Flow
 

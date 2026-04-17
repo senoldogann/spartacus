@@ -1,9 +1,90 @@
+import type { AgentExecutionMode, AgentProvider } from "@repobench/domain";
+
 // API_INTERNAL_URL is a runtime env var set in Docker Compose for server-to-server
 // communication (container name resolution). Falls back to the NEXT_PUBLIC var
 // (baked at build time) which works for local dev and browser-side fetches.
 const API_BASE =
   process.env["API_INTERNAL_URL"] ?? process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
 const API_TOKEN = process.env["REPOBENCH_API_TOKEN"] ?? process.env["API_AUTH_TOKEN"] ?? "";
+
+type JsonObject = Readonly<Record<string, unknown>>;
+
+export type AgentProfileResponse = {
+  readonly id: string;
+  readonly name: string;
+  readonly provider: AgentProvider;
+  readonly model: string;
+  readonly executionMode: AgentExecutionMode;
+  readonly createdAt: string;
+};
+
+export type CreateAgentProfileInput = {
+  readonly name: string;
+  readonly provider: AgentProvider;
+  readonly model: string;
+  readonly executionMode: AgentExecutionMode;
+  readonly runtimeConfig: JsonObject;
+  readonly config?: JsonObject;
+};
+
+export type RepoResponse = {
+  readonly id: string;
+  readonly owner: string;
+  readonly name: string;
+  readonly createdAt: string;
+};
+
+export type CreateRepoInput = {
+  readonly owner: string;
+  readonly name: string;
+};
+
+export type SuiteResponse = {
+  readonly id: string;
+  readonly repositoryId: string;
+  readonly name: string;
+  readonly description: string;
+  readonly taskCount: number;
+  readonly createdAt: string;
+};
+
+export type CreateSuiteInput = {
+  readonly name: string;
+  readonly description?: string;
+  readonly maxPrs?: number;
+  readonly testCommand: string;
+};
+
+export type RunResponse = {
+  readonly id: string;
+  readonly suiteId: string;
+  readonly agentProfileId: string;
+  readonly status: string;
+  readonly totalTasks: number;
+  readonly completedTasks: number;
+  readonly passedTasks: number;
+  readonly failedTasks: number;
+  readonly createdAt: string;
+};
+
+export type CreateRunInput = {
+  readonly agentProfileId: string;
+};
+
+export type RunMetricsResponse = {
+  readonly status: string;
+  readonly totalTasks: number;
+  readonly completedTasks: number;
+  readonly passedTasks: number;
+  readonly failedTasks: number;
+  readonly completionRate: number;
+  readonly passRate: number;
+};
+
+export type RunComparisonResponse = {
+  readonly runA: RunMetricsResponse;
+  readonly runB: RunMetricsResponse;
+};
 
 /**
  * Typed fetch wrapper for the RepoBench API.
@@ -21,6 +102,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
   const response = await fetch(url, {
     ...options,
+    cache: "no-store",
     headers: {
       ...headers,
       ...options?.headers,
@@ -37,36 +119,50 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const apiClient = {
   agentProfiles: {
-    list: (): Promise<{ agentProfiles: ReadonlyArray<unknown> }> => apiFetch("/api/agent-profiles"),
-    get: (id: string): Promise<{ agentProfile: unknown }> =>
+    list: (): Promise<{ agentProfiles: ReadonlyArray<AgentProfileResponse> }> =>
+      apiFetch("/api/agent-profiles"),
+    get: (id: string): Promise<{ agentProfile: AgentProfileResponse }> =>
       apiFetch(`/api/agent-profiles/${encodeURIComponent(id)}`),
-    create: (input: {
-      readonly name: string;
-      readonly provider: string;
-      readonly model: string;
-      readonly executionMode?: "hosted" | "local";
-      readonly runtimeConfig?: Record<string, unknown>;
-      readonly config?: Record<string, unknown>;
-    }): Promise<{ agentProfile: unknown }> =>
+    create: (input: CreateAgentProfileInput): Promise<{ agentProfile: AgentProfileResponse }> =>
       apiFetch("/api/agent-profiles", {
         method: "POST",
         body: JSON.stringify(input),
       }),
   },
   repos: {
-    list: (): Promise<{ repos: ReadonlyArray<unknown> }> => apiFetch("/api/repos"),
-    get: (id: string): Promise<{ repo: unknown }> =>
+    list: (): Promise<{ repos: ReadonlyArray<RepoResponse> }> => apiFetch("/api/repos"),
+    get: (id: string): Promise<{ repo: RepoResponse }> =>
       apiFetch(`/api/repos/${encodeURIComponent(id)}`),
+    create: (input: CreateRepoInput): Promise<{ repo: RepoResponse }> =>
+      apiFetch("/api/repos", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+  },
+  suites: {
+    listByRepo: (repoId: string): Promise<{ suites: ReadonlyArray<SuiteResponse> }> =>
+      apiFetch(`/api/repos/${encodeURIComponent(repoId)}/suites`),
+    create: (repoId: string, input: CreateSuiteInput): Promise<{ suite: SuiteResponse }> =>
+      apiFetch(`/api/repos/${encodeURIComponent(repoId)}/suites`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
   },
   runs: {
-    list: (suiteId: string): Promise<{ runs: ReadonlyArray<unknown> }> =>
+    list: (suiteId: string): Promise<{ runs: ReadonlyArray<RunResponse> }> =>
       apiFetch(`/api/suites/${encodeURIComponent(suiteId)}/runs`),
-    get: (id: string): Promise<{ run: unknown }> => apiFetch(`/api/runs/${encodeURIComponent(id)}`),
+    create: (suiteId: string, input: CreateRunInput): Promise<{ run: RunResponse }> =>
+      apiFetch(`/api/suites/${encodeURIComponent(suiteId)}/runs`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    get: (id: string): Promise<{ run: RunResponse }> =>
+      apiFetch(`/api/runs/${encodeURIComponent(id)}`),
     results: (
       id: string,
     ): Promise<{
-      run: unknown;
-      summary: unknown;
+      run: RunResponse;
+      summary: RunMetricsResponse & { readonly completedTasks: number };
       attempts: ReadonlyArray<unknown>;
       verdicts: ReadonlyArray<unknown>;
     }> => apiFetch(`/api/runs/${encodeURIComponent(id)}/results`),
@@ -95,7 +191,7 @@ export const apiClient = {
     },
   },
   compare: {
-    runs: (runA: string, runB: string): Promise<{ comparison: unknown }> =>
+    runs: (runA: string, runB: string): Promise<{ comparison: RunComparisonResponse }> =>
       apiFetch(`/api/compare?runA=${encodeURIComponent(runA)}&runB=${encodeURIComponent(runB)}`),
   },
 };

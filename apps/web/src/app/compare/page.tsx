@@ -1,22 +1,8 @@
+import Link from "next/link";
 import type React from "react";
-import { apiClient } from "../../lib/api-client";
+import { apiClient, type RunComparisonResponse } from "../../lib/api-client";
 
 export const dynamic = "force-dynamic";
-
-type RunMetrics = {
-  readonly status: string;
-  readonly totalTasks: number;
-  readonly completedTasks: number;
-  readonly passedTasks: number;
-  readonly failedTasks: number;
-  readonly completionRate: number;
-  readonly passRate: number;
-};
-
-type Comparison = {
-  readonly runA: RunMetrics;
-  readonly runB: RunMetrics;
-};
 
 type ComparePageProps = {
   searchParams: Promise<{ runA?: string; runB?: string }>;
@@ -46,20 +32,25 @@ export default async function ComparePage({
       <main className="p-8">
         <h1 className="text-2xl font-bold">Compare Runs</h1>
         <p className="mt-4 text-gray-600">
-          Provide{" "}
-          <code className="rounded bg-gray-100 px-1 py-0.5 text-sm">?runA=...&runB=...</code> query
-          parameters to compare two runs.
+          Provide run IDs from the same suite in the query string to compare two completed runs.
+        </p>
+        <p className="mt-2 text-sm text-gray-500">
+          Need data first? Create runs from the{" "}
+          <Link className="font-medium text-blue-700 underline" href="/setup">
+            setup page
+          </Link>
+          .
         </p>
       </main>
     );
   }
 
-  let comparison: Comparison | null = null;
+  let comparison: RunComparisonResponse | null = null;
   let error: string | null = null;
 
   try {
     const data = await apiClient.compare.runs(runA, runB);
-    comparison = data.comparison as Comparison;
+    comparison = data.comparison;
   } catch (err: unknown) {
     error = err instanceof Error ? err.message : "Failed to load comparison";
   }

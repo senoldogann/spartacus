@@ -35,8 +35,8 @@ docker run --rm \
 ### Network Policy
 
 - **Default**: `--network none` — no network access
-- **Agent API mode**: Bridge network with iptables rules allowing only agent API endpoints
-- Allowed hosts: `api.anthropic.com`, `api.openai.com`
+- **Agent API mode**: Planned, but not yet enforced in runtime. `AGENT_API_ONLY` remains a reserved future mode until host-level egress filtering is implemented.
+- Current runtime support: `DENY_ALL` only
 
 ### Workspace Mounting
 

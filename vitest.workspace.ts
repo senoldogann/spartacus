@@ -1,6 +1,6 @@
-import { defineWorkspace } from "vitest/config";
+import type { TestProjectConfiguration } from "vitest/config";
 
-export default defineWorkspace([
+const workspace: TestProjectConfiguration[] = [
   "packages/*/vitest.config.ts",
   "apps/*/vitest.config.ts",
   "services/*/vitest.config.ts",
@@ -10,4 +10,6 @@ export default defineWorkspace([
       include: ["tests/integration/**/*.spec.ts"],
     },
   },
-]);
+];
+
+export default workspace;

@@ -5,6 +5,8 @@
  */
 
 export const SCHEMA_SQL = `
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS repositories (
   id            TEXT PRIMARY KEY,
   owner         TEXT NOT NULL,
@@ -96,5 +98,7 @@ CREATE TABLE IF NOT EXISTS evaluation_verdicts (
 CREATE INDEX IF NOT EXISTS idx_tasks_suite ON tasks(suite_id);
 CREATE INDEX IF NOT EXISTS idx_runs_suite ON runs(suite_id);
 CREATE INDEX IF NOT EXISTS idx_run_attempts_run ON run_attempts(run_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_run_attempts_run_task_agent_attempt ON run_attempts(run_id, task_id, agent_profile_id, attempt_number);
 CREATE INDEX IF NOT EXISTS idx_evaluation_verdicts_run ON evaluation_verdicts(run_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_evaluation_verdicts_attempt ON evaluation_verdicts(attempt_id);
 `;

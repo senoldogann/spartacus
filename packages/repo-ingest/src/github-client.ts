@@ -1,4 +1,5 @@
 import type { Repository } from "@repobench/domain";
+import { fetchGitHubJson } from "./github-request.js";
 
 /**
  * Minimal GitHub API response shape for a repository.
@@ -26,8 +27,6 @@ function isGitHubRepoResponse(value: unknown): value is GitHubRepoResponse {
   );
 }
 
-const GITHUB_API_TIMEOUT_MS = 30_000;
-
 /**
  * Fetches repository metadata from the GitHub API.
  */
@@ -37,25 +36,16 @@ export async function fetchRepository(
   token: string,
 ): Promise<Repository> {
   const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
+  const data = await fetchGitHubJson(
+    {
+      url,
+      token,
+      accept: "application/vnd.github+json",
+      context: `fetchRepository owner=${owner} repo=${name}`,
     },
-    signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`GitHub API error: status=${response.status} url=${url} body=${body}`);
-  }
-
-  const data: unknown = await response.json();
-
-  if (!isGitHubRepoResponse(data)) {
-    throw new Error(`GitHub API returned unexpected repository shape: url=${url}`);
-  }
+    isGitHubRepoResponse,
+    "repository",
+  );
 
   return {
     id: String(data.id),

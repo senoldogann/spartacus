@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 
-import { parseArgs } from "node:util";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { initCommand } from "./commands/init.js";
 import { importCommand } from "./commands/import.js";
 import { runCommand } from "./commands/run.js";
 import { reportCommand } from "./commands/report.js";
 import { compareCommand } from "./commands/compare.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// package.json lives one level above dist/ where this compiled file runs.
+const VERSION = (
+  JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as { version: string }
+).version;
 
 const COMMANDS: Record<string, (args: ReadonlyArray<string>) => Promise<void>> = {
   init: initCommand,
@@ -16,21 +25,16 @@ const COMMANDS: Record<string, (args: ReadonlyArray<string>) => Promise<void>> =
 };
 
 async function main(): Promise<void> {
-  const { positionals } = parseArgs({
-    allowPositionals: true,
-    strict: false,
-  });
-
-  const commandName = positionals[0];
-
-  if (commandName === undefined || commandName === "help") {
-    printUsage();
-    return;
-  }
+  const [commandName, ...commandArgs] = process.argv.slice(2);
 
   if (commandName === "--version") {
     // eslint-disable-next-line no-console
-    console.log("repobench 0.0.1");
+    console.log(`repobench ${VERSION}`);
+    return;
+  }
+
+  if (commandName === undefined || commandName === "help" || commandName === "--help") {
+    printUsage();
     return;
   }
 
@@ -42,7 +46,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  await command(positionals.slice(1));
+  await command(commandArgs);
 }
 
 function printUsage(): void {

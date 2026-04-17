@@ -16,7 +16,6 @@ export async function compareCommand(args: ReadonlyArray<string>): Promise<void>
 
   const runA = values["run-a"] as string | undefined;
   const runB = values["run-b"] as string | undefined;
-  const format = (values["format"] as string | undefined) ?? "table";
 
   if (runA === undefined || runB === undefined) {
     throw new Error(
@@ -24,10 +23,7 @@ export async function compareCommand(args: ReadonlyArray<string>): Promise<void>
     );
   }
 
-  // eslint-disable-next-line no-console
-  console.log(`Comparing runs ${runA} vs ${runB} (format: ${format})...`);
-
-  // TODO: Fetch both run results and produce comparison
-  // eslint-disable-next-line no-console
-  console.log("Comparison complete.");
+  throw new Error(
+    `The compare command is not implemented yet. Use the API to compare benchmark runs (run-a: ${runA}, run-b: ${runB}).`,
+  );
 }

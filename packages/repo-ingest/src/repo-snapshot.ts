@@ -1,6 +1,5 @@
 import type { TaskSnapshot } from "@repobench/domain";
-
-const GITHUB_API_TIMEOUT_MS = 30_000;
+import { fetchGitHubText } from "./github-request.js";
 
 /**
  * Fetches the diff for a specific PR and constructs a TaskSnapshot.
@@ -16,23 +15,12 @@ export async function createSnapshot(
 ): Promise<TaskSnapshot> {
   const diffUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${prNumber}`;
 
-  const diffResponse = await fetch(diffUrl, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github.diff",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
+  const patchDiff = await fetchGitHubText({
+    url: diffUrl,
+    token,
+    accept: "application/vnd.github.diff",
+    context: `createSnapshot owner=${owner} repo=${repo} pr=${prNumber}`,
   });
-
-  if (!diffResponse.ok) {
-    const body = await diffResponse.text();
-    throw new Error(
-      `GitHub diff fetch error: status=${diffResponse.status} pr=${prNumber} body=${body}`,
-    );
-  }
-
-  const patchDiff = await diffResponse.text();
   const changedFiles = extractChangedFiles(patchDiff);
 
   return {

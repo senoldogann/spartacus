@@ -20,10 +20,7 @@ export async function runCommand(args: ReadonlyArray<string>): Promise<void> {
     throw new Error("--agent is required. Usage: repobench run --agent claude --suite default");
   }
 
-  // eslint-disable-next-line no-console
-  console.log(`Starting benchmark run: agent=${agent}, suite=${suite}`);
-
-  // TODO: Enqueue run via API or direct worker invocation
-  // eslint-disable-next-line no-console
-  console.log("Run queued.");
+  throw new Error(
+    `The run command is not implemented yet. Use the API to create benchmark runs (agent: ${agent}, suite: ${suite}).`,
+  );
 }

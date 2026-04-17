@@ -19,7 +19,8 @@ test.describe("Dashboard", () => {
   });
 
   test("compare page loads", async ({ page }) => {
-    await page.goto("/compare");
+    await page.goto("/");
+    await page.click('a[href="/compare"]');
     await expect(page.locator("h1")).toHaveText("Compare Agents");
   });
 });

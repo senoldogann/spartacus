@@ -3,42 +3,5 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "references": [
-    {
-      "path": "packages/domain"
-    },
-    {
-      "path": "packages/repo-ingest"
-    },
-    {
-      "path": "packages/task-builder"
-    },
-    {
-      "path": "packages/agents"
-    },
-    {
-      "path": "packages/sandbox"
-    },
-    {
-      "path": "packages/evaluator"
-    },
-    {
-      "path": "packages/storage"
-    },
-    {
-      "path": "packages/ui"
-    },
-    {
-      "path": "apps/api"
-    },
-    {
-      "path": "apps/web"
-    },
-    {
-      "path": "apps/cli"
-    },
-    {
-      "path": "services/worker"
-    }
-  ]
+  "files": []
 }

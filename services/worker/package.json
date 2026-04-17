@@ -13,10 +13,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@repobench/domain": "workspace:*",
     "@repobench/agents": "workspace:*",
-    "@repobench/sandbox": "workspace:*",
+    "@repobench/domain": "workspace:*",
     "@repobench/evaluator": "workspace:*",
-    "@repobench/storage": "workspace:*"
+    "@repobench/sandbox": "workspace:*",
+    "@repobench/storage": "workspace:*",
+    "bullmq": "^5.74.1"
   }
 }

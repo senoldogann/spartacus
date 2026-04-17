@@ -1,28 +1,155 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import { sendNotImplemented } from "../not-implemented.js";
+import type { BenchmarkSuite } from "@repobench/domain";
+import { createSnapshot, fetchMergedPrs } from "@repobench/repo-ingest";
+import { filterBugfixCandidates, buildBugfixTask } from "@repobench/task-builder";
+
+type CreateSuiteBody = {
+  readonly name: string;
+  readonly description?: string;
+  readonly maxPrs?: number;
+  readonly testCommand?: string;
+};
+
+function parseCreateSuiteBody(body: unknown): CreateSuiteBody | null {
+  if (typeof body !== "object" || body === null) {
+    return null;
+  }
+
+  const candidate = body as Record<string, unknown>;
+  const name = candidate["name"];
+  const description = candidate["description"];
+  const maxPrs = candidate["maxPrs"];
+  const testCommand = candidate["testCommand"];
+
+  if (typeof name !== "string") {
+    return null;
+  }
+
+  if (description !== undefined && typeof description !== "string") {
+    return null;
+  }
+
+  if (maxPrs !== undefined && typeof maxPrs !== "number") {
+    return null;
+  }
+
+  if (maxPrs !== undefined && (maxPrs < 1 || maxPrs > 200)) {
+    return null;
+  }
+
+  if (testCommand !== undefined && typeof testCommand !== "string") {
+    return null;
+  }
+
+  return {
+    name,
+    description,
+    maxPrs,
+    testCommand,
+  };
+}
 
 /**
  * Benchmark suite management endpoints.
  */
 export function registerSuiteRoutes(server: FastifyInstance): void {
-  // List suites for a repository
-  server.get<{ Params: { repoId: string } }>(
-    "/api/repos/:repoId/suites",
-    async (_request, reply) => {
-      await sendNotImplemented(reply, "Suite listing");
-    },
-  );
-
-  // Get suite detail
-  server.get<{ Params: { id: string } }>("/api/suites/:id", async (_request, reply) => {
-    await sendNotImplemented(reply, "Suite detail lookup");
+  server.get<{ Params: { repoId: string } }>("/api/repos/:repoId/suites", async (request) => {
+    const suites = await server.suites.findByRepository(request.params.repoId);
+    return { suites };
   });
 
-  // Create a new suite from imported PRs
-  server.post<{ Params: { repoId: string } }>(
+  server.get<{ Params: { id: string } }>("/api/suites/:id", async (request, reply) => {
+    const suite = await server.suites.findById(request.params.id);
+    if (suite === null) {
+      return reply.code(404).send({ error: "Suite not found" });
+    }
+    const tasks = await server.tasks.findBySuite(suite.id);
+    return { suite, tasks };
+  });
+
+  server.post<{ Params: { repoId: string }; Body: CreateSuiteBody }>(
     "/api/repos/:repoId/suites",
-    async (_request, reply) => {
-      await sendNotImplemented(reply, "Suite creation");
+    async (request, reply) => {
+      const { repoId } = request.params;
+      const body = parseCreateSuiteBody(request.body);
+
+      if (body === null) {
+        return reply.code(400).send({ error: "name is required" });
+      }
+
+      const { name, description, maxPrs, testCommand } = body;
+
+      if (typeof name !== "string" || name.trim().length === 0) {
+        return reply.code(400).send({ error: "name is required" });
+      }
+
+      const repo = await server.repos.findById(repoId);
+      if (repo === null) {
+        return reply.code(404).send({ error: "Repository not found" });
+      }
+
+      const token = process.env["GITHUB_TOKEN"];
+      if (token === undefined || token.trim().length === 0) {
+        return reply.code(500).send({ error: "GITHUB_TOKEN not configured" });
+      }
+
+      // Fetch and filter PRs
+      const prs = await fetchMergedPrs(repo.owner, repo.name, token, maxPrs ?? 50);
+      const candidates = filterBugfixCandidates(prs);
+
+      if (candidates.length === 0) {
+        return reply.code(422).send({ error: "No suitable bugfix PRs found" });
+      }
+
+      const suiteId = randomUUID();
+      const resolvedTestCommand = testCommand ?? "npm test";
+      const tasks = await Promise.all(
+        candidates.map(async (candidate) => {
+          const snapshot = await createSnapshot(
+            repo.owner,
+            repo.name,
+            candidate.prNumber,
+            candidate.baseSha,
+            candidate.headSha,
+            token,
+            resolvedTestCommand,
+          );
+
+          return buildBugfixTask(suiteId, repoId, candidate, snapshot);
+        }),
+      );
+
+      const suite: BenchmarkSuite = {
+        id: suiteId,
+        repositoryId: repoId,
+        name,
+        description: description ?? "",
+        taskCount: tasks.length,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const created = await server.suites.create(suite);
+
+      try {
+        await server.tasks.createMany(tasks);
+      } catch (error: unknown) {
+        // Compensating action: remove the suite row to avoid an orphaned
+        // suite that reports taskCount > 0 but has no task rows.
+        try {
+          await server.suites.deleteById(created.id);
+        } catch {
+          // Best-effort cleanup; log and continue to rethrow original error.
+          server.log.error(
+            { suiteId: created.id },
+            "Failed to delete orphaned suite after task creation error",
+          );
+        }
+        throw error;
+      }
+
+      return reply.code(201).send({ suite: created, taskCount: tasks.length });
     },
   );
 }

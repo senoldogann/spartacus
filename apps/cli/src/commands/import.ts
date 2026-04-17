@@ -14,12 +14,8 @@ export async function importCommand(args: ReadonlyArray<string>): Promise<void> 
   });
 
   const source = (values["source"] as string | undefined) ?? "github";
-  const limit = parseInt((values["limit"] as string | undefined) ?? "50", 10);
 
-  // eslint-disable-next-line no-console
-  console.log(`Importing tasks from ${source} (limit: ${limit})...`);
-
-  // TODO: Wire to repo-ingest + task-builder pipeline
-  // eslint-disable-next-line no-console
-  console.log("Import complete.");
+  throw new Error(
+    `The import command is not implemented yet. Use the API to import benchmark tasks (source: ${source}).`,
+  );
 }

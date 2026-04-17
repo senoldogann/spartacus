@@ -20,10 +20,7 @@ export async function reportCommand(args: ReadonlyArray<string>): Promise<void> 
     throw new Error("--run is required. Usage: repobench report --run <run-id>");
   }
 
-  // eslint-disable-next-line no-console
-  console.log(`Generating report for run ${runId} (format: ${format})...`);
-
-  // TODO: Fetch run results from API/store and render
-  // eslint-disable-next-line no-console
-  console.log("Report complete.");
+  throw new Error(
+    `The report command is not implemented yet. Use the API to fetch run reports (run: ${runId}, format: ${format}).`,
+  );
 }

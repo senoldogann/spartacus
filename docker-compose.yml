@@ -17,6 +17,8 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Enable AOF persistence so BullMQ job data survives container restarts.
+    command: redis-server --appendonly yes
     ports:
       - "6379:6379"
     volumes:
@@ -39,7 +41,9 @@ services:
     volumes:
       - miniodata:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      # Use the MinIO built-in liveness endpoint instead of the mc binary,
+      # which is not shipped in the minio/minio image.
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
       timeout: 5s
       retries: 5

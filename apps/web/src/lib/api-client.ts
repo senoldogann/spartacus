@@ -41,8 +41,14 @@ export const apiClient = {
     list: (suiteId: string): Promise<{ runs: ReadonlyArray<unknown> }> =>
       apiFetch(`/api/suites/${encodeURIComponent(suiteId)}/runs`),
     get: (id: string): Promise<{ run: unknown }> => apiFetch(`/api/runs/${encodeURIComponent(id)}`),
-    results: (id: string): Promise<{ results: ReadonlyArray<unknown> }> =>
-      apiFetch(`/api/runs/${encodeURIComponent(id)}/results`),
+    results: (
+      id: string,
+    ): Promise<{
+      run: unknown;
+      summary: unknown;
+      attempts: ReadonlyArray<unknown>;
+      verdicts: ReadonlyArray<unknown>;
+    }> => apiFetch(`/api/runs/${encodeURIComponent(id)}/results`),
   },
   compare: {
     runs: (runA: string, runB: string): Promise<{ comparison: unknown }> =>

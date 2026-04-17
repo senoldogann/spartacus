@@ -1,3 +1,5 @@
+import { fetchGitHubJson } from "./github-request.js";
+
 /**
  * Minimal GitHub PR list API response shape.
  */
@@ -13,17 +15,8 @@ type GitHubPullRequestListItem = {
 
 type GitHubPullRequestDetail = GitHubPullRequestListItem & {
   readonly changed_files: number;
+  readonly head: { readonly sha: string };
 };
-
-const GITHUB_API_TIMEOUT_MS = 30_000;
-
-function createGitHubHeaders(token: string): Readonly<Record<string, string>> {
-  return {
-    Authorization: `Bearer ${token}`,
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
-}
 
 function isPullRequestListItemArray(
   value: unknown,
@@ -40,6 +33,7 @@ function isPullRequestDetail(value: unknown): value is GitHubPullRequestDetail {
     "number" in value &&
     "merge_commit_sha" in value &&
     "changed_files" in value &&
+    "head" in value &&
     "labels" in value
   );
 }
@@ -52,23 +46,16 @@ async function fetchPullRequestDetail(
 ): Promise<GitHubPullRequestDetail> {
   const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${prNumber}`;
 
-  const response = await fetch(url, {
-    headers: createGitHubHeaders(token),
-    signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`GitHub API error: status=${response.status} url=${url} body=${body}`);
-  }
-
-  const detail = await response.json();
-
-  if (!isPullRequestDetail(detail)) {
-    throw new Error(`GitHub API returned an unexpected PR detail shape: url=${url}`);
-  }
-
-  return detail;
+  return fetchGitHubJson(
+    {
+      url,
+      token,
+      accept: "application/vnd.github+json",
+      context: `fetchPullRequestDetail owner=${owner} repo=${repo} pr=${prNumber}`,
+    },
+    isPullRequestDetail,
+    "pull request detail",
+  );
 }
 
 async function fetchInBatches<T, R>(
@@ -122,23 +109,16 @@ export async function fetchMergedPrs(
       `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls` +
       `?state=closed&sort=updated&direction=desc&per_page=${perPage}&page=${page}`;
 
-    const response = await fetch(url, {
-      headers: createGitHubHeaders(token),
-      signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`GitHub API error: status=${response.status} url=${url} body=${body}`);
-    }
-
-    const payload = await response.json();
-
-    if (!isPullRequestListItemArray(payload)) {
-      throw new Error(`GitHub API returned an unexpected PR list shape: url=${url}`);
-    }
-
-    const prs = payload;
+    const prs = await fetchGitHubJson(
+      {
+        url,
+        token,
+        accept: "application/vnd.github+json",
+        context: `fetchMergedPrs owner=${owner} repo=${repo} page=${page}`,
+      },
+      isPullRequestListItemArray,
+      "pull request list",
+    );
 
     if (prs.length === 0) {
       break;
@@ -162,7 +142,7 @@ export async function fetchMergedPrs(
         description: pr.body ?? "",
         url: pr.html_url,
         baseSha: pr.base.sha,
-        headSha: pr.merge_commit_sha,
+        headSha: pr.head.sha,
         changedFiles: pr.changed_files,
         labels: pr.labels.map((l) => l.name),
       });

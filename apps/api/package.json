@@ -14,7 +14,11 @@
   },
   "dependencies": {
     "@repobench/domain": "workspace:*",
+    "@repobench/repo-ingest": "workspace:^",
     "@repobench/storage": "workspace:*",
-    "fastify": "^5.8.5"
+    "@repobench/task-builder": "workspace:^",
+    "bullmq": "^5.74.1",
+    "fastify": "^5.8.5",
+    "fastify-plugin": "^5.1.0"
   }
 }

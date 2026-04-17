@@ -2,6 +2,9 @@
  * Benchmark worker process.
  * Consumes benchmark run jobs from a Redis queue and orchestrates execution.
  */
+import { Worker } from "bullmq";
+import { runBenchmarkJob } from "./run-benchmark-job.js";
+import type { BenchmarkJobInput } from "./run-benchmark-job.js";
 
 function describeRedisTarget(redisConnectionString: string): {
   readonly protocol: string;
@@ -23,12 +26,67 @@ function describeRedisTarget(redisConnectionString: string): {
   };
 }
 
+function createRedisConnectionOptions(redisConnectionString: string): {
+  readonly host: string;
+  readonly port: number;
+  readonly username?: string;
+  readonly password?: string;
+  readonly db?: number;
+  readonly tls?: Record<string, never>;
+} {
+  const parsedUrl = new URL(redisConnectionString);
+  const dbPath = parsedUrl.pathname.replace(/^\//u, "");
+  const connection: {
+    host: string;
+    port: number;
+    username?: string;
+    password?: string;
+    db?: number;
+    tls?: Record<string, never>;
+  } = {
+    host: parsedUrl.hostname,
+    port: parseInt(parsedUrl.port === "" ? "6379" : parsedUrl.port, 10),
+  };
+
+  if (Number.isNaN(connection.port)) {
+    throw new Error("REDIS_URL port must be a valid number");
+  }
+
+  if (parsedUrl.username.length > 0) {
+    connection.username = decodeURIComponent(parsedUrl.username);
+  }
+
+  if (parsedUrl.password.length > 0) {
+    connection.password = decodeURIComponent(parsedUrl.password);
+  }
+
+  if (dbPath.length > 0) {
+    const db = parseInt(dbPath, 10);
+    if (Number.isNaN(db)) {
+      throw new Error("REDIS_URL database must be a valid number");
+    }
+
+    connection.db = db;
+  }
+
+  if (parsedUrl.protocol === "rediss:") {
+    connection.tls = {};
+  }
+
+  return connection;
+}
+
 // eslint-disable-next-line no-console
 console.log("RepoBench Worker starting...");
 
 const redisUrl = process.env["REDIS_URL"];
 if (redisUrl === undefined) {
   throw new Error("REDIS_URL environment variable is required");
+}
+
+const databaseUrl = process.env["DATABASE_URL"];
+if (databaseUrl === undefined) {
+  throw new Error("DATABASE_URL environment variable is required");
 }
 
 const concurrency = parseInt(process.env["WORKER_CONCURRENCY"] ?? "2", 10);
@@ -47,10 +105,60 @@ console.log("Worker configured", {
   concurrency,
 });
 
-// TODO: Initialize BullMQ Worker
-// - Listen for 'benchmark-run' jobs
-// - Call runBenchmarkJob for each job
-// - Report progress and results
+// A single benchmark job can take: clone (≤180s) + agent (≤120s) + tests (≤120s) = ~7 min.
+// Lock must exceed the maximum expected job duration so BullMQ doesn't mark it stalled and
+// re-queue it while a worker is still processing it — which would cause duplicate execution.
+const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+const worker = new Worker<BenchmarkJobInput>(
+  "benchmark-run",
+  async (job) => {
+    // eslint-disable-next-line no-console
+    console.log(`Processing job ${job.id}: run=${job.data.runId}`);
+    await runBenchmarkJob(job.data, databaseUrl);
+    // eslint-disable-next-line no-console
+    console.log(`Completed job ${job.id}: run=${job.data.runId}`);
+  },
+  {
+    concurrency,
+    lockDuration: LOCK_DURATION_MS,
+    // Retry up to 2 more times on transient failures (network blip, DB hiccup).
+    // The job is idempotent for already-settled tasks so retries are safe.
+    settings: {
+      backoffStrategy: (attemptsMade: number): number => Math.min(10_000 * attemptsMade, 60_000),
+    },
+    connection: createRedisConnectionOptions(redisUrl),
+  },
+);
+
+worker.on("failed", (job, err) => {
+  // eslint-disable-next-line no-console
+  console.error(`Job ${job?.id} failed:`, err.message);
+});
+
+worker.on("error", (err) => {
+  // eslint-disable-next-line no-console
+  console.error("Worker error:", err.message);
+});
+
+// Gracefully drain in-flight jobs before shutting down so the run state machine
+// always reaches a terminal state and the lock is cleanly released.
+process.on("SIGTERM", () => {
+  // eslint-disable-next-line no-console
+  console.log("SIGTERM received — closing worker gracefully...");
+  worker
+    .close()
+    .then(() => {
+      // eslint-disable-next-line no-console
+      console.log("Worker closed");
+      process.exit(0);
+    })
+    .catch((err: unknown) => {
+      // eslint-disable-next-line no-console
+      console.error("Error closing worker:", err);
+      process.exit(1);
+    });
+});
 
 // eslint-disable-next-line no-console
-console.log("Worker bootstrap complete. Benchmark job consumer is not implemented yet.");
+console.log("Worker listening on queue: benchmark-run");

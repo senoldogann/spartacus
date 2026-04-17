@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
+import fp from "fastify-plugin";
 
 const BEARER_PREFIX = "Bearer ";
 const HMAC_KEY = ((): Buffer => {
@@ -29,7 +30,7 @@ function hasMatchingToken(expectedToken: Buffer, providedToken: string): boolean
 /**
  * Validates API tokens for protected endpoints.
  */
-export const authPlugin: FastifyPluginAsync = async (server) => {
+const authPluginImpl: FastifyPluginAsync = async (server) => {
   const expectedToken = getExpectedApiToken();
 
   server.addHook("onRequest", async (request, reply) => {
@@ -61,3 +62,5 @@ export const authPlugin: FastifyPluginAsync = async (server) => {
     }
   });
 };
+
+export const authPlugin = fp(authPluginImpl, { name: "auth" });

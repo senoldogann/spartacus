@@ -1,4 +1,3 @@
-import type { Task } from "@repobench/domain";
 import type { AgentAdapter, AgentResult } from "../agent-adapter.js";
 
 /**
@@ -8,11 +7,7 @@ import type { AgentAdapter, AgentResult } from "../agent-adapter.js";
 export function createOpenSourceAdapter(): AgentAdapter {
   return {
     provider: "open-source",
-    solve: async (
-      _task: Task,
-      _workspacePath: string,
-      _timeoutMs: number,
-    ): Promise<AgentResult> => {
+    solve: async (): Promise<AgentResult> => {
       // TODO: Implement open-source model invocation
       throw new Error("Open-source adapter not yet implemented");
     },

@@ -14,6 +14,9 @@ export default function HomePage(): React.JSX.Element {
         <a href="/runs" className="rounded-lg border border-gray-300 px-6 py-3 hover:bg-gray-50">
           Runs
         </a>
+        <a href="/compare" className="rounded-lg border border-gray-300 px-6 py-3 hover:bg-gray-50">
+          Compare
+        </a>
       </div>
     </main>
   );

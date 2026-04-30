@@ -19,7 +19,7 @@
     "@repobench/repo-ingest": "workspace:^",
     "@repobench/storage": "workspace:*",
     "@repobench/task-builder": "workspace:^",
-    "bullmq": "^5.74.1",
+    "bullmq": "^5.76.4",
     "fastify": "^5.8.5",
     "fastify-plugin": "^5.1.0"
   }

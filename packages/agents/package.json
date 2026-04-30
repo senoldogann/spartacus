@@ -19,8 +19,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39",
+    "@anthropic-ai/sdk": "^0.92",
     "@repobench/domain": "workspace:*",
-    "openai": "^6.34.0"
+    "openai": "^6.35.0"
   }
 }

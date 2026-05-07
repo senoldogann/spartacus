@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 1 – base: Node 20 + pnpm
 # ──────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS base
+FROM node:26-alpine AS base
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ RUN pnpm --filter @repobench/worker deploy --prod /deploy/worker
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 5 – api: production runtime image
 # ──────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS api
+FROM node:26-alpine AS api
 WORKDIR /app
 
 COPY --from=api-deploy /deploy/api .
@@ -70,7 +70,7 @@ CMD ["node", "dist/server.js"]
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 6 – worker: production runtime image
 # ──────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS worker
+FROM node:26-alpine AS worker
 WORKDIR /app
 
 COPY --from=worker-deploy /deploy/worker .
@@ -83,7 +83,7 @@ CMD ["node", "dist/worker.js"]
 # The standalone output contains a self-hosted server.js with its own
 # node_modules, so no pnpm is needed in this stage.
 # ──────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS web
+FROM node:26-alpine AS web
 WORKDIR /app
 
 # Standalone bundle (server.js + inlined node_modules)

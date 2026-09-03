@@ -20,7 +20,7 @@
     "@repobench/storage": "workspace:*",
     "@repobench/task-builder": "workspace:^",
     "bullmq": "^5.74.1",
-    "fastify": "^5.8.5",
+    "fastify": "^5.12.1",
     "fastify-plugin": "^5.1.0"
   }
 }
